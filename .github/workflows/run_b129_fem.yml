@@ -100,6 +100,12 @@ jobs:
           python - <<'PY'
           import re
           from pathlib import Path
+          model_text = Path("models/b129_stage1/generate_model.py").read_text()
+          ramp_match = re.search(r"^MAX_INDENTATION_UM\s*=\s*([\d.]+)", model_text, re.MULTILINE)
+          if not ramp_match:
+              raise RuntimeError("Could not read MAX_INDENTATION_UM from generate_model.py")
+          ramp_um = float(ramp_match.group(1))
+          print("target_indentation_um=", ramp_um)
           log = Path("results/B129_stage1_normal_contact.log")
           if log.exists():
               data = log.read_text(errors="replace")
@@ -107,14 +113,24 @@ jobs:
               failed = re.findall(r"failed to converge at time\s*:\s*([\d.eE+-]+)", data)
               jac = re.findall(r"Negative jacobian was detected at element\s*(\d+)", data)
               print("last_converged_time=", converged[-1] if converged else "none")
-              print("last_converged_indentation_um=", 50.0 * float(converged[-1]) if converged else "none")
+              print("last_converged_indentation_um=", ramp_um * float(converged[-1]) if converged else "none")
               print("last_failed_time=", failed[-1] if failed else "none")
               print("negative_jacobian_events=", len(jac))
               print("last_negative_jacobian_element=", jac[-1] if jac else "none")
           PY
           if test -s results/B129_stage1_normal_contact.xplt; then
+            RAMP_UM=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("models/b129_stage1/generate_model.py").read_text()
+          m = re.search(r"^MAX_INDENTATION_UM\s*=\s*([\d.]+)", text, re.MULTILINE)
+          if not m:
+              raise RuntimeError("Could not read MAX_INDENTATION_UM")
+          print(m.group(1))
+          PY
+            )
             python analyze_b129_xplt.py results/B129_stage1_normal_contact.xplt \
-              --ramp-um 50.0 --output results/B129_pressure_history.csv
+              --ramp-um "$RAMP_UM" --output results/B129_pressure_history.csv
             tail -n 1 results/B129_pressure_history.csv
           fi
 
