@@ -142,8 +142,17 @@ def main():
             step_size=STEP_SIZE,
             plot_stride=1,
             output_stride=1,
+            time_stepper=feb.control.TimeStepper(
+                max_retries=10,
+                opt_iter=15,
+                cutback=0.5,
+            ),
             solver=feb.control.SolidSolver(
                 symmetric_stiffness="symmetric",
+                max_refs=60,
+                lsiter=10,
+                lsmin=0.001,
+                qn_method=feb.control.FullNewtonMethod(),
             ),
         )
     )
@@ -277,6 +286,7 @@ def main():
             symmetric_stiffness=1,
             fric_coeff=0,
             maxaug=25,
+            seg_up=1,
         )
     )
 
