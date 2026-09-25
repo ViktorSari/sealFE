@@ -25,8 +25,10 @@ All runs use displacement-controlled top loading and a maximum external displace
 
 | [34](https://github.com/ViktorSari/sealFE/actions/runs/36145346210) | 17623a8 | Extended linear displacement curve to time 2; 4.20 µm at analysis time 1 | 4.198549 | 6.495353 | Identical negative-Jacobian failure to run 33; curve extension reverted |
 
+| [35](https://github.com/ViktorSari/sealFE/actions/runs/36147165459) | aa14c6c | Restored best 50 µm search ramp with 1 µm contact-side layers | 4.347901 | 7.651088 | 32 negative Jacobians on final retry, concentrated in the first 3 µm of rubber near x≈26.5–32.5 µm and x≈88–92 µm |
+
 Penalty-only runs 24–25 have a load drop near failure and do not establish useful progress toward 5 MPa. Run 27 crosses 5 MPa between converged states (4.014428 µm, 4.999290 MPa) and (4.017837 µm, 5.025094 MPa). Linear interpolation gives 4.014521 µm at 5 MPa. Its converged nominal pressure increases monotonically over the stored states; the solve later fails by element inversion. Run 28 extends the monotonic branch to 4.347901 µm and 7.651088 MPa; the next attempted step (4.348470 µm) inverts rubber elements. A verification run will stop at 4.30 µm, inside the established converged interval. The bulk modulus (850 MPa) is a placeholder and absolute pressure predictions require material validation.
 
 Runs 31–33 failed within 0.0015 µm of their respective endpoints. Run 34 tests whether extending the same linear load curve beyond analysis time 1 removes an endpoint discontinuity; the displacement at t=1 remains 4.20 µm.
 
-After run 34, the model was restored to the best run-28 settings (50 µm search ramp, 1 µm contact-side layers). A replay with diagnostic pressure output is pending.
+Run 35 reproduced the run-28 maximum exactly: 4.347901 µm and 7.651088 MPa, with a monotonic pressure branch and first crossing of 5 MPa at 4.016272 µm. The next test refines only the first 3 µm of rubber to 0.5 µm layers because the final negative Jacobians are localized there.
