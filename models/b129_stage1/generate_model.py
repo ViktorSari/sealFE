@@ -52,13 +52,12 @@ CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local elem
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
-NEAR_CONTACT_LAYER_UM = 1.70
-NEAR_CONTACT_LAYER_COUNT = 5
-_near = np.arange(NEAR_CONTACT_LAYER_COUNT + 1, dtype=float) * NEAR_CONTACT_LAYER_UM
-RUBBER_Z_LEVELS_UM = np.concatenate([
-    _near,
-    np.array([12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM], dtype=float),
-])
+NEAR_CONTACT_LAYER_UM = 1.50
+TRANSITION_NODE_UM = 6.50
+RUBBER_Z_LEVELS_UM = np.array(
+    [0.0, 1.5, 3.0, 4.5, 6.0, TRANSITION_NODE_UM, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
+    dtype=float,
+)
 
 
 class MeshBuilder:
@@ -360,7 +359,7 @@ def main():
 
     print(f"Generated: {OUTPUT_FEB}")
     print(f"Profile points: {nx}")
-    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um, {NEAR_CONTACT_LAYER_COUNT} layers")
+    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um; transition node: {TRANSITION_NODE_UM} um")
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
