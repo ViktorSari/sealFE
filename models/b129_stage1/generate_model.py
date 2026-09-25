@@ -18,7 +18,7 @@ Loading:
 
 Contact:
 - sliding-elastic normal contact
-- augmented Lagrange, two-pass
+- augmented Lagrange, one-pass (rigid primary / deformable secondary)
 - fric_coeff = 0 means no prescribed Coulomb shear at this Stage 1
 
 The generated XML is patched to use FEBio's built-in skyline linear solver,
@@ -138,6 +138,9 @@ def main():
             step_size=STEP_SIZE,
             plot_stride=5,
             output_stride=5,
+            solver=feb.control.SolidSolver(
+                symmetric_stiffness="symmetric",
+            ),
         )
     )
 
@@ -265,7 +268,8 @@ def main():
             surface_pair="rough_contact",
             auto_penalty=1,
             laugon="AUGLAG",
-            two_pass=1,
+            two_pass=0,
+            symmetric_stiffness=1,
             fric_coeff=0,
             maxaug=25,
         )
