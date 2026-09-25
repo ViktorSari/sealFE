@@ -45,11 +45,12 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 5.0
+MAX_INDENTATION_UM = 50.0
+DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 10.0  # ~E0 / first-layer height = 5.1 / 0.5
 
-TIME_STEPS = 100
-STEP_SIZE = 0.01
+TIME_STEPS = int(round(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
+STEP_SIZE = 1.0 / TIME_STEPS
 
 RUBBER_Z_LEVELS_UM = np.array(
     [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, RUBBER_HEIGHT_UM],
@@ -327,7 +328,7 @@ def main():
     print(f"Profile points: {nx}")
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
-    print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um")
+    print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
