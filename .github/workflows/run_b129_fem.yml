@@ -59,8 +59,17 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p results
+          cat > "${GITHUB_WORKSPACE}/febio_diag.xml" <<'EOF'
+          <febio_config version="3.0">
+            <default_linear_solver type="skyline"/>
+            <output_negative_jacobians>60</output_negative_jacobians>
+          </febio_config>
+          EOF
           cd models/b129_stage1
-          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" -i B129_stage1_normal_contact.feb             > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
+          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" \
+            -i B129_stage1_normal_contact.feb \
+            -cnf "${GITHUB_WORKSPACE}/febio_diag.xml" \
+            > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
 
       - name: Collect FEM outputs
         if: always()
