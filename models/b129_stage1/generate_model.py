@@ -193,7 +193,12 @@ def main():
         feb.meshdomains.SolidDomain(name="al_rigid", mat="al_rigid")
     )
     model.meshdomains_.add_solid_domain(
-        feb.meshdomains.SolidDomain(name="rubber", mat="rubber")
+        feb.meshdomains.SolidDomain(
+            name="rubber",
+            mat="rubber",
+            type="three-field-solid",
+            elem_type="HEX8G8",
+        )
     )
 
     # Contact surfaces.
