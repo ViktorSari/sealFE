@@ -34,7 +34,7 @@ def child(data, start, end, tag):
 
 def extract(path, nx=401, ramp_um=50.0, width_um=200.0, depth_um=1.0):
     data = Path(path).read_bytes()
-    if data[:4] != b"BEF\\0":
+    if data[:4] != b"BEF\0":
         raise ValueError("Not a FEBio XPLT file")
     for tag, begin, end in chunks(data, 4, len(data)):
         if tag != 0x02000000:  # state
