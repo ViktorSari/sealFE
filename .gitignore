@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.febio-src/
+.febio-build/
+results/
+models/b129_stage1/*.feb
+models/b129_stage1/*.xplt
+models/b129_stage1/*.log
