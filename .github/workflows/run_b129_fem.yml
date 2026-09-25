@@ -61,7 +61,7 @@ jobs:
           mkdir -p results
           cat > "${GITHUB_WORKSPACE}/febio_diag.xml" <<'EOF'
           <febio_config version="3.0">
-            <default_linear_solver type="skyline"/>
+            <default_linear_solver type="skyline"></default_linear_solver>
             <output_negative_jacobians>60</output_negative_jacobians>
           </febio_config>
           EOF
