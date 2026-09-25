@@ -1,0 +1,2 @@
+numpy>=2.0
+git+https://github.com/febiosoftware/pyfebio.git@e591eaf506a9b58c47fd41e9d5761c235358c3be
