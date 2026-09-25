@@ -268,14 +268,24 @@ def main():
         )
     )
 
-    # Remove the remaining x rigid-body mode with one upper-centre anchor.
-    anchor = int(rub_nodes[nx // 2, 0, -1])
+    # The 200 um strip represents material embedded in a larger rubber body.
+    # Roller constraints at the two x-boundaries suppress nonphysical lateral
+    # rigid drift / severe shear while leaving vertical motion free.
+    side_nodes = np.unique(
+        np.concatenate([
+            rub_nodes[0, :, :].reshape(-1),
+            rub_nodes[-1, :, :].reshape(-1),
+        ])
+    ).astype(int).tolist()
     model.mesh_.add_node_set(
-        feb.mesh.NodeSet(name="x_anchor", text=str(anchor))
+        feb.mesh.NodeSet(
+            name="rubber_x_sides",
+            text=",".join(map(str, side_nodes)),
+        )
     )
     model.boundary_.add_bc(
         feb.boundary.BCZeroDisplacement(
-            node_set="x_anchor",
+            node_set="rubber_x_sides",
             x_dof=1, y_dof=0, z_dof=0,
         )
     )
@@ -291,7 +301,8 @@ def main():
             symmetric_stiffness=1,
             fric_coeff=0,
             maxaug=25,
-            seg_up=1,
+            seg_up=5,
+            search_radius=5.0,
         )
     )
 
