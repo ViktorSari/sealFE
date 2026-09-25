@@ -47,13 +47,13 @@ C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0
 DISPLACEMENT_INCREMENT_UM = 0.1
-CONTACT_PENALTY_MPA_PER_UM = 10.0  # ~E0 / first-layer height = 5.1 / 0.5
+CONTACT_PENALTY_MPA_PER_UM = 2.5  # ~E0 / first-layer height = 5.1 / 2.0
 
 TIME_STEPS = int(round(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
 RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, RUBBER_HEIGHT_UM],
+    [0.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, RUBBER_HEIGHT_UM],
     dtype=float,
 )
 
