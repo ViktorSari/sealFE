@@ -1,6 +1,6 @@
 # B129 FEBio run history
 
-All runs use displacement-controlled top loading and a maximum external displacement increment of 0.1 µm. Nominal pressure is the sum of top-node z reaction forces divided by the 200 µm × 1 µm nominal area, extracted from the last converged state in each .xplt artifact. The target is 0–5 MPa; a workflow failure means the nonlinear solve did not reach the −50 µm displacement endpoint.
+All runs use displacement-controlled top loading and a maximum external displacement increment of 0.1 µm. Nominal pressure is the sum of top-node z reaction forces divided by the 200 µm × 1 µm nominal area, extracted from the last converged state in each .xplt artifact. The target is 0–5 MPa; a workflow failure means the nonlinear solve did not reach that run's displacement endpoint.
 
 | Run | Commit | Change | Last converged indentation (µm) | Nominal pressure (MPa) | Failure |
 | --- | --- | --- | ---: | ---: | --- |
@@ -17,4 +17,12 @@ All runs use displacement-controlled top loading and a maximum external displace
 
 | [28](https://github.com/ViktorSari/sealFE/actions/runs/36133553574) | d9593dd | Augmented contact, 1 µm first 8 µm layers | 4.347901 | 7.651088 | Negative Jacobians; 10 retries exhausted after 238 completed steps |
 
+| [29](https://github.com/ViktorSari/sealFE/actions/runs/36136572474) | 6d95f2d | 4.30 µm analysis endpoint | unavailable | unavailable | FEBio solve failed; large artifact could not be opened during workspace outage |
+| [30](https://github.com/ViktorSari/sealFE/actions/runs/36139545062) | 14bdc5a | Same model; first diagnostic workflow | unavailable | unavailable | FEBio solve failed; diagnostic command also failed due to escaping error |
+| [31](https://github.com/ViktorSari/sealFE/actions/runs/36139598947) | 4a0c5bc | Same model; corrected diagnostic | 4.299551 | 7.242593 | Negative Jacobians near time 1; 10 retries exhausted |
+| [32](https://github.com/ViktorSari/sealFE/actions/runs/36142613762) | d984213 | 4.20 µm analysis endpoint; diagnostic still used stale 4.30 µm scale | 4.198549 | 6.495353 | Negative Jacobians near time 1; 10 retries exhausted |
+| [33](https://github.com/ViktorSari/sealFE/actions/runs/36142657424) | 5ba663f | Same model; corrected diagnostic scale | 4.198549 | 6.495353 | Negative Jacobians near time 1; 10 retries exhausted |
+
 Penalty-only runs 24–25 have a load drop near failure and do not establish useful progress toward 5 MPa. Run 27 crosses 5 MPa between converged states (4.014428 µm, 4.999290 MPa) and (4.017837 µm, 5.025094 MPa). Linear interpolation gives 4.014521 µm at 5 MPa. Its converged nominal pressure increases monotonically over the stored states; the solve later fails by element inversion. Run 28 extends the monotonic branch to 4.347901 µm and 7.651088 MPa; the next attempted step (4.348470 µm) inverts rubber elements. A verification run will stop at 4.30 µm, inside the established converged interval. The bulk modulus (850 MPa) is a placeholder and absolute pressure predictions require material validation.
+
+Runs 31–33 failed within 0.0015 µm of their respective endpoints. Run 34 tests whether extending the same linear load curve beyond analysis time 1 removes an endpoint discontinuity; the displacement at t=1 remains 4.20 µm.
