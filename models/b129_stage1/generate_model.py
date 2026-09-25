@@ -52,12 +52,12 @@ CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local elem
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
-NEAR_CONTACT_LAYER_UM = 1.70
-NEAR_CONTACT_DEPTH_UM = 8.0
-_near = np.arange(0.0, NEAR_CONTACT_DEPTH_UM, NEAR_CONTACT_LAYER_UM, dtype=float)
+NEAR_CONTACT_LAYER_UM = 1.30
+NEAR_CONTACT_LAYER_COUNT = 5
+_near = np.arange(NEAR_CONTACT_LAYER_COUNT + 1, dtype=float) * NEAR_CONTACT_LAYER_UM
 RUBBER_Z_LEVELS_UM = np.concatenate([
     _near,
-    np.array([NEAR_CONTACT_DEPTH_UM, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM], dtype=float),
+    np.array([12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM], dtype=float),
 ])
 
 
