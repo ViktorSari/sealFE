@@ -45,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.348
 C01_MPA = 0.886
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 5.02  # endpoint verification near the run-40 stability limit
+MAX_INDENTATION_UM = 5.03  # upper endpoint verification near the run-40 stability limit
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
