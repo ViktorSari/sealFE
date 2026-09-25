@@ -94,6 +94,39 @@ jobs:
           find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \)             -exec cp {} results/ \; || true
           echo "solve_outcome=${{ steps.solve.outcome }}" > results/workflow_status.txt
 
+      - name: Report last converged B129 state
+        if: always()
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          log = Path("results/B129_stage1_normal_contact.log")
+          if log.exists():
+              data = log.read_text(errors="replace")
+              converged = re.findall(r"converged at time\\s*:\\s*([\\d.eE+-]+)", data)
+              failed = re.findall(r"failed to converge at time\\s*:\\s*([\\d.eE+-]+)", data)
+              jac = re.findall(r"Negative jacobian was detected at element\\s*(\\d+)", data)
+              print("last_converged_time=", converged[-1] if converged else "none")
+              print("last_converged_indentation_um=", 4.3 * float(converged[-1]) if converged else "none")
+              print("last_failed_time=", failed[-1] if failed else "none")
+              print("negative_jacobian_events=", len(jac))
+              print("last_negative_jacobian_element=", jac[-1] if jac else "none")
+          PY
+          if test -s results/B129_stage1_normal_contact.xplt; then
+            python analyze_b129_xplt.py results/B129_stage1_normal_contact.xplt \\
+              --ramp-um 4.3 --output results/B129_pressure_history.csv
+            tail -n 1 results/B129_pressure_history.csv
+          fi
+
+      - name: Upload B129 pressure history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-pressure-history
+          path: results/B129_pressure_history.csv
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload FEBio results
         if: always()
         uses: actions/upload-artifact@v4
