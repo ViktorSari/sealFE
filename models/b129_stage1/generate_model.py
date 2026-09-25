@@ -45,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 0.10
+MAX_INDENTATION_UM = 5.0
 CONTACT_PENALTY_MPA_PER_UM = 10.0  # ~E0 / first-layer height = 5.1 / 0.5
 
 TIME_STEPS = 100
@@ -139,8 +139,8 @@ def main():
         control_=feb.control.Control(
             time_steps=TIME_STEPS,
             step_size=STEP_SIZE,
-            plot_stride=5,
-            output_stride=5,
+            plot_stride=1,
+            output_stride=1,
             solver=feb.control.SolidSolver(
                 symmetric_stiffness="symmetric",
             ),
