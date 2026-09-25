@@ -143,8 +143,11 @@ def main():
             plot_stride=1,
             output_stride=1,
             time_stepper=feb.control.TimeStepper(
-                max_retries=15,
+                max_retries=0,
                 opt_iter=15,
+                dtmin=STEP_SIZE,
+                dtmax=feb.control.TimeStepValue(text=STEP_SIZE),
+                aggressiveness=0,
                 cutback=0.5,
             ),
             solver=feb.control.SolidSolver(
