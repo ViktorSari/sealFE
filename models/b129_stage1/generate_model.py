@@ -18,6 +18,7 @@ Loading:
 
 Contact:
 - sliding-elastic normal contact
+- manual contact penalty (10 MPa/um) to avoid bulk-modulus-driven auto-penalty
 - augmented Lagrange, one-pass (deformable rubber primary/slave / rigid aluminium secondary/master)
 - fric_coeff = 0 means no prescribed Coulomb shear at this Stage 1
 
@@ -44,6 +45,7 @@ C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_PRESSURE_MPA = 5.0
+CONTACT_PENALTY_MPA_PER_UM = 10.0  # ~E0 / first-layer height = 5.1 / 0.5
 
 TIME_STEPS = 100
 STEP_SIZE = 0.01
@@ -266,7 +268,8 @@ def main():
         feb.contact.SlidingElastic(
             name="rough_normal_contact",
             surface_pair="rough_contact",
-            auto_penalty=1,
+            penalty=CONTACT_PENALTY_MPA_PER_UM,
+            auto_penalty=0,
             laugon="AUGLAG",
             two_pass=0,
             symmetric_stiffness=1,
