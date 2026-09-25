@@ -18,7 +18,7 @@ Loading:
 
 Contact:
 - sliding-elastic normal contact
-- augmented Lagrange, one-pass (rigid primary / deformable secondary)
+- augmented Lagrange, one-pass (deformable rubber primary/slave / rigid aluminium secondary/master)
 - fric_coeff = 0 means no prescribed Coulomb shear at this Stage 1
 
 The generated XML is patched to use FEBio's built-in skyline linear solver,
@@ -221,8 +221,8 @@ def main():
     model.mesh_.add_surface_pair(
         feb.mesh.SurfacePair(
             name="rough_contact",
-            primary="al_top",
-            secondary="rubber_bottom",
+            primary="rubber_bottom",
+            secondary="al_top",
         )
     )
 
