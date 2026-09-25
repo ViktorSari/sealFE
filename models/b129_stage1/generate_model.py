@@ -19,7 +19,7 @@ Loading:
 
 Contact:
 - sliding-elastic normal contact
-- manual contact penalty (10 MPa/um) to avoid bulk-modulus-driven auto-penalty
+- manual contact penalty (0.30 MPa/um) to avoid bulk-modulus-driven auto-penalty
 - augmented Lagrange, one-pass (deformable rubber primary/slave / rigid aluminium secondary/master)
 - fric_coeff = 0 means no prescribed Coulomb shear at this Stage 1
 
@@ -47,13 +47,13 @@ C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0
 DISPLACEMENT_INCREMENT_UM = 0.1
-CONTACT_PENALTY_MPA_PER_UM = 0.65  # held fixed to isolate the mesh-height change
+CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
 TIME_STEPS = int(round(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
 RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 12.0, 24.0, 36.0, 48.0, 64.0, 80.0, RUBBER_HEIGHT_UM],
+    [0.0, 8.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
     dtype=float,
 )
 
