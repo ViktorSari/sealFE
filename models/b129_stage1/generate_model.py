@@ -311,10 +311,12 @@ def main():
         )
     )
 
+    # Extend the same linear displacement ramp beyond analysis time 1.0;
+    # a terminal load-curve corner at t=1 coincided with repeated inversions.
     model.loaddata_.add_load_curve(
         feb.loaddata.LoadCurve(
             id=1,
-            points=feb.loaddata.CurvePoints(points=["0,0", "1,1"]),
+            points=feb.loaddata.CurvePoints(points=["0,0", "2,2"]),
         )
     )
     top_nodes = rub_nodes[:, :, -1].reshape(-1).tolist()
