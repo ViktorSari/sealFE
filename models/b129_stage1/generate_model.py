@@ -14,7 +14,7 @@ Material:
 - K = 850 MPa placeholder until measured compressibility/D is supplied
 
 Loading:
-- displacement-controlled seating ramp, top surface 0 -> -0.10 um
+- displacement-controlled seating ramp to MAX_INDENTATION_UM, max 0.1 um external step
 - reaction force is used to recover nominal pressure
 
 Contact:
@@ -45,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 50.0
+MAX_INDENTATION_UM = 4.3  # verified target below the 4.3479 um inversion limit
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
