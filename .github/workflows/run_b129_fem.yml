@@ -52,7 +52,7 @@ jobs:
       - name: Build FEBio
         run: |
           cmake --build .febio-build --target febio4 --parallel 2
-          ./.febio-build/bin/febio4 -v
+          test -x ./.febio-build/bin/febio4
 
       - name: Run B129 nonlinear contact solve
         id: solve
