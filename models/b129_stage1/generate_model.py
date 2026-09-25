@@ -8,13 +8,10 @@ Geometry:
 - 100 um rubber layer, thin 3D extrusion with uy=0 (plane-strain-like)
 
 Material:
-- 5-parameter polynomial Mooney-Rivlin fit
-- C10 = 0.398849754 MPa
-- C01 = 0.996195833 MPa
-- C20 = 3.098280344 MPa
-- C11 = -4.994973947 MPa
-- C02 = 1.918798587 MPa
-- initial bulk modulus K = 850 MPa via D1 = K/2, D2 = 0
+- uncoupled Mooney-Rivlin
+- C10 = 0.348 MPa
+- C01 = 0.886 MPa
+- K = 850 MPa placeholder until measured compressibility/D is supplied
 
 Loading:
 - displacement-controlled seating ramp to MAX_INDENTATION_UM, max 0.1 um external step
@@ -45,14 +42,9 @@ RUBBER_HEIGHT_UM = 100.0
 AL_BASE_MARGIN_UM = 5.0
 INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact rigid z mode
 
-C10_MPA = 0.398849754
-C01_MPA = 0.996195833
-C20_MPA = 3.098280344
-C11_MPA = -4.994973947
-C02_MPA = 1.918798587
-BULK_MODULUS_MPA = 850.0  # preserve the previous small-strain volumetric stiffness
-D1_MPA = 0.5 * BULK_MODULUS_MPA  # polynomial material: U''(J=1) = 2*D1 = K
-D2_MPA = 0.0
+C10_MPA = 0.348
+C01_MPA = 0.886
+BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0  # explore contact until numerical inversion
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
@@ -204,7 +196,7 @@ def main():
         feb.meshdomains.SolidDomain(
             name="rubber",
             mat="rubber",
-            type="elastic-solid",
+            type="three-field-solid",
             elem_type="HEX8G8",
         )
     )
@@ -357,41 +349,6 @@ def main():
 
     model.save(str(OUTPUT_FEB))
 
-    # pyFEBio does not currently expose FEBio's general polynomial hyperelastic
-    # material. Patch only the rubber material in the generated XML. The
-    # 5-parameter Mooney-Rivlin fit is the second-order polynomial with
-    # c12=c21=c22=0. FEBio's polynomial material is a coupled elastic material,
-    # so the rubber domain above uses elastic-solid instead of three-field-solid.
-    import xml.etree.ElementTree as ET
-
-    tree = ET.parse(OUTPUT_FEB)
-    root = tree.getroot()
-    rubber_material = None
-    material_section = root.find("Material")
-    if material_section is not None:
-        for material in material_section.findall("material"):
-            if material.get("name") == "rubber":
-                rubber_material = material
-                break
-    if rubber_material is None:
-        raise RuntimeError("Could not find rubber material in generated FEBio XML")
-
-    rubber_material.set("type", "polynomial")
-    for child in list(rubber_material):
-        rubber_material.remove(child)
-    polynomial_parameters = {
-        "c10": C10_MPA,
-        "c01": C01_MPA,
-        "c20": C20_MPA,
-        "c11": C11_MPA,
-        "c02": C02_MPA,
-        "D1": D1_MPA,
-        "D2": D2_MPA,
-    }
-    for tag, value in polynomial_parameters.items():
-        ET.SubElement(rubber_material, tag).text = f"{value:.12g}"
-    tree.write(OUTPUT_FEB, encoding="utf-8", xml_declaration=True)
-
     # pyFEBio currently restricts the LinearSolver enum to MKL solvers.
     # CI intentionally builds FEBio without MKL, so select built-in skyline.
     xml = OUTPUT_FEB.read_text(encoding="utf-8")
@@ -403,9 +360,7 @@ def main():
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
-    print("Material: 5-parameter polynomial Mooney-Rivlin")
-    print(f"MR5: C10={C10_MPA}, C01={C01_MPA}, C20={C20_MPA}, C11={C11_MPA}, C02={C02_MPA} MPa")
-    print(f"Volumetric: D1={D1_MPA} MPa, D2={D2_MPA} MPa (initial K={BULK_MODULUS_MPA} MPa)")
+    print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
