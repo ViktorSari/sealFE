@@ -359,7 +359,8 @@ def main():
     OUTPUT_FEB.write_text(xml, encoding="utf-8")
 
     print(f"Generated: {OUTPUT_FEB}")
-    print(f"Profile points: {nx}")\n    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um to {NEAR_CONTACT_DEPTH_UM} um")
+    print(f"Profile points: {nx}")
+    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um, {NEAR_CONTACT_LAYER_COUNT} layers")
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
