@@ -45,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 4.2  # verification target with margin below the 4.30 um unstable endpoint
+MAX_INDENTATION_UM = 50.0  # explore contact until numerical inversion
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
@@ -311,12 +311,10 @@ def main():
         )
     )
 
-    # Extend the same linear displacement ramp beyond analysis time 1.0;
-    # a terminal load-curve corner at t=1 coincided with repeated inversions.
     model.loaddata_.add_load_curve(
         feb.loaddata.LoadCurve(
             id=1,
-            points=feb.loaddata.CurvePoints(points=["0,0", "2,2"]),
+            points=feb.loaddata.CurvePoints(points=["0,0", "1,1"]),
         )
     )
     top_nodes = rub_nodes[:, :, -1].reshape(-1).tolist()
