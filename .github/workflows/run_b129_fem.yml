@@ -107,14 +107,14 @@ jobs:
               failed = re.findall(r"failed to converge at time\s*:\s*([\d.eE+-]+)", data)
               jac = re.findall(r"Negative jacobian was detected at element\s*(\d+)", data)
               print("last_converged_time=", converged[-1] if converged else "none")
-              print("last_converged_indentation_um=", 4.3 * float(converged[-1]) if converged else "none")
+              print("last_converged_indentation_um=", 4.2 * float(converged[-1]) if converged else "none")
               print("last_failed_time=", failed[-1] if failed else "none")
               print("negative_jacobian_events=", len(jac))
               print("last_negative_jacobian_element=", jac[-1] if jac else "none")
           PY
           if test -s results/B129_stage1_normal_contact.xplt; then
             python analyze_b129_xplt.py results/B129_stage1_normal_contact.xplt \
-              --ramp-um 4.3 --output results/B129_pressure_history.csv
+              --ramp-um 4.2 --output results/B129_pressure_history.csv
             tail -n 1 results/B129_pressure_history.csv
           fi
 
