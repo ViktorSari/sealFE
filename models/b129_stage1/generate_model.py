@@ -53,7 +53,7 @@ TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
 RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 1.25, 2.5, 3.75, 5.0, 6.25, 7.5, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
+    [0.0, 1.75, 3.5, 5.25, 7.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
     dtype=float,
 )
 
