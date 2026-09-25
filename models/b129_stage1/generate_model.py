@@ -20,7 +20,7 @@ Loading:
 Contact:
 - sliding-elastic normal contact
 - manual contact penalty (0.30 MPa/um) to avoid bulk-modulus-driven auto-penalty
-- penalty enforcement, one-pass (deformable rubber primary/slave / rigid aluminium secondary/master)
+- augmented Lagrange, one-pass (deformable rubber primary/slave / rigid aluminium secondary/master)
 - fric_coeff = 0 means no prescribed Coulomb shear at this Stage 1
 
 The generated XML is patched to use FEBio's built-in skyline linear solver,
@@ -301,7 +301,7 @@ def main():
             surface_pair="rough_contact",
             penalty=CONTACT_PENALTY_MPA_PER_UM,
             auto_penalty=0,
-            laugon="PENALTY",
+            laugon="AUGLAG",
             two_pass=0,
             symmetric_stiffness=1,
             fric_coeff=0,

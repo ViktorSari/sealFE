@@ -46,16 +46,35 @@ jobs:
           sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
           grep -q 'int NegativeJacobian::m_maxout = 60;' .febio-src/FECore/FEException.cpp
 
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+
       - name: Configure FEBio without external linear solvers
+        if: steps.febio-cache.outputs.cache-hit != 'true'
         run: |
           cmake -S .febio-src -B .febio-build             -DCMAKE_BUILD_TYPE=Release             -DUSE_MKL=OFF             -DUSE_FFTW=OFF             -DUSE_HYPRE=OFF             -DUSE_LEVMAR=OFF             -DUSE_MMG=OFF             -DUSE_NLOPT=OFF             -DUSE_SUPERLU_MT=OFF             -DUSE_ZLIB=OFF             -DUSE_STATIC_STDLIBS=OFF \
             -DCMAKE_EXE_LINKER_FLAGS="-fopenmp" \
             -DCMAKE_SHARED_LINKER_FLAGS="-fopenmp"
 
       - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
         run: |
           cmake --build .febio-build --target febio4 --parallel 2
           test -x ./.febio-build/bin/febio4
+
+      - name: Save FEBio build cache
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+
+      - name: Verify FEBio executable
+        run: test -x .febio-build/bin/febio4
 
       - name: Run B129 nonlinear contact solve
         id: solve
