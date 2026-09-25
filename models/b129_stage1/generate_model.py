@@ -45,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.348
 C01_MPA = 0.886
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 5.03  # upper endpoint verification near the run-40 stability limit
+MAX_INDENTATION_UM = 50.0  # search ramp for mesh-sensitivity stability limit
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
@@ -53,7 +53,7 @@ TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
 RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
+    [0.0, 1.5, 3.0, 4.5, 6.0, 8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
     dtype=float,
 )
 
