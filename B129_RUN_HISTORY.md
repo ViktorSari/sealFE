@@ -11,4 +11,6 @@ All runs use displacement-controlled top loading and a maximum external displace
 | [24](https://github.com/ViktorSari/sealFE/actions/runs/36127949288) | 072b96a | Penalty-only contact | 4.100000 | 0.052944 | Negative Jacobians; reaction dropped from 0.233375 MPa at 4.0 µm to 0.052944 MPa at 4.1 µm |
 | [25](https://github.com/ViktorSari/sealFE/actions/runs/36129034075) | fae69c5 | Penalty-only contact, 4 µm first layers | 4.174442 | 0.052719 | Negative Jacobians; reaction dropped after 0.249056 MPa peak |
 
-Penalty-only runs 24–25 have a load drop near failure and do not establish useful progress toward 5 MPa. The next experiment restores augmented Lagrange contact with the refined mesh. The bulk modulus (850 MPa) is a placeholder and absolute pressure predictions require material validation.
+| [26](https://github.com/ViktorSari/sealFE/actions/runs/36130271562) | 108f652 | Augmented contact, 4 µm first layers | 3.604658 | 1.892250 | Negative Jacobians near the contact; 10 retries exhausted |
+
+Penalty-only runs 24–25 have a load drop near failure and do not establish useful progress toward 5 MPa. The next experiment refines the first 8 µm to 2 µm layers while retaining augmented Lagrange contact. The bulk modulus (850 MPa) is a placeholder and absolute pressure predictions require material validation.
