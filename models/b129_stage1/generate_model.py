@@ -38,7 +38,7 @@ OUTPUT_FEB = HERE / "B129_stage1_normal_contact.feb"
 OUT_OF_PLANE_UM = 1.0
 RUBBER_HEIGHT_UM = 100.0
 AL_BASE_MARGIN_UM = 5.0
-INITIAL_GAP_UM = 0.0
+INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact rigid z mode
 
 C10_MPA = 0.20
 C01_MPA = 0.65
@@ -287,7 +287,7 @@ def main():
             pressure=feb.loads.Scale(lc=1, text=MAX_PRESSURE_MPA),
             linear=0,
             shell_bottom=0,
-            symmetric_stiffness=0,
+            symmetric_stiffness=1,
         )
     )
 
