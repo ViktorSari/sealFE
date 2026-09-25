@@ -26,6 +26,7 @@ All runs use displacement-controlled top loading and a maximum external displace
 | [34](https://github.com/ViktorSari/sealFE/actions/runs/36145346210) | 17623a8 | Extended linear displacement curve to time 2; 4.20 µm at analysis time 1 | 4.198549 | 6.495353 | Identical negative-Jacobian failure to run 33; curve extension reverted |
 
 | [35](https://github.com/ViktorSari/sealFE/actions/runs/36147165459) | aa14c6c | Restored best 50 µm search ramp with 1 µm contact-side layers | 4.347901 | 7.651088 | 32 negative Jacobians on final retry, concentrated in the first 3 µm of rubber near x≈26.5–32.5 µm and x≈88–92 µm |
+| [36](https://github.com/ViktorSari/sealFE/actions/runs/36150610323) | 62149f2 | 0.5 µm layers in the first 3 µm; otherwise run-35 settings | 4.158708 | 6.136954 | Negative Jacobians after 5 MPa had already been exceeded; fine mesh changes the 5 MPa indentation by only -0.0020% relative to the 1 µm baseline |
 | [36](https://github.com/ViktorSari/sealFE/actions/runs/36150610323) | 62149f2 | 0.5 µm rubber layers in first 3 µm | 4.158708 | 6.136954 | Negative rubber element Jacobian; failed at time 0.0832155, last reported element 1805 |
 | [37](https://github.com/ViktorSari/sealFE/actions/runs/36155708548) | e18361e | Restored 1 µm rubber layers | 4.347901 | 7.651088 | Negative rubber element Jacobian; failed at time 0.0869694, last reported element 1262 |
 
@@ -33,4 +34,4 @@ Penalty-only runs 24–25 have a load drop near failure and do not establish use
 
 Runs 31–33 failed within 0.0015 µm of their respective endpoints. Run 34 tests whether extending the same linear load curve beyond analysis time 1 removes an endpoint discontinuity; the displacement at t=1 remains 4.20 µm.
 
-Run 35 reproduced the run-28 maximum exactly: 4.347901 µm and 7.651088 MPa, with a monotonic pressure branch and first crossing of 5 MPa at 4.016272 µm. The next test refines only the first 3 µm of rubber to 0.5 µm layers because the final negative Jacobians are localized there.
+Run 35 reproduced the run-28 maximum exactly: 4.347901 µm and 7.651088 MPa, with a monotonic pressure branch. Run 36 refined only the first 3 µm of rubber to 0.5 µm layers. For the 0–5 MPa target range the mesh sensitivity is negligible: interpolated 5 MPa indentation is 4.014521 µm (2 µm coarse), 4.014708 µm (1 µm baseline), and 4.014627 µm (0.5 µm fine). The fine mesh later fails at 4.158708 µm / 6.136954 MPa, so further maximum-indentation tuning is not required for the 0–5 MPa study.
