@@ -53,6 +53,8 @@ All runs use displacement-controlled top loading and a maximum external displace
 | [70](https://github.com/ViktorSari/sealFE/actions/runs/36176678814) | f8f8c19 | 1.5 µm mesh, transition node 8.5 µm | 5.140951 | 13.973662 | Negative Jacobian; failed at time 0.102843, last element 1167. Monotonic pressure. |
 | [71](https://github.com/ViktorSari/sealFE/actions/runs/36176683493) | 2314121 | 1.5 µm mesh, transition node 9.0 µm | 5.152656 | 14.157748 | Negative Jacobian; failed at time 0.103064, last element 1164. Monotonic pressure. |
 | [72](https://github.com/ViktorSari/sealFE/actions/runs/36176687871) | 2b9411b | 1.5 µm mesh, transition node 9.5 µm | 5.069919 | 13.427831 | Negative Jacobian; failed at time 0.101422, last element 921. Monotonic pressure. |
+| [73](https://github.com/ViktorSari/sealFE/actions/runs/36180472776) | 284fb11 | 1.5 µm mesh, transition node 8.75 µm | 5.121296 | 13.753044 | Negative Jacobian; failed at time 0.102437, last element 1168. Monotonic pressure. |
+| [74](https://github.com/ViktorSari/sealFE/actions/runs/36180485048) | e0b6d31 | 1.5 µm mesh, transition node 9.25 µm | 5.100550 | 13.564270 | Negative Jacobian; failed at time 0.102023, last element 1166. Monotonic pressure. |
 
 Runs 49–58 are invalid setup attempts: the FEM solve did not start because the generated Python contained an escaped-newline `SyntaxError`. Run 59 corrected both the generator and displacement diagnostics.
 
