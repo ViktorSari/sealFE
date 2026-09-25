@@ -143,13 +143,15 @@ def main():
             plot_stride=1,
             output_stride=1,
             time_stepper=feb.control.TimeStepper(
-                max_retries=10,
+                max_retries=15,
                 opt_iter=15,
                 cutback=0.5,
             ),
             solver=feb.control.SolidSolver(
                 symmetric_stiffness="symmetric",
-                max_refs=60,
+                dtol=0.01,
+                etol=0.01,
+                max_refs=100,
                 lsiter=10,
                 lsmin=0.001,
                 qn_method=feb.control.FullNewtonMethod(),
