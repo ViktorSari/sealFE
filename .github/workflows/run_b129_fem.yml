@@ -45,7 +45,9 @@ jobs:
 
       - name: Configure FEBio without external linear solvers
         run: |
-          cmake -S .febio-src -B .febio-build             -DCMAKE_BUILD_TYPE=Release             -DUSE_MKL=OFF             -DUSE_FFTW=OFF             -DUSE_HYPRE=OFF             -DUSE_LEVMAR=OFF             -DUSE_MMG=OFF             -DUSE_NLOPT=OFF             -DUSE_SUPERLU_MT=OFF             -DUSE_ZLIB=OFF             -DUSE_STATIC_STDLIBS=OFF
+          cmake -S .febio-src -B .febio-build             -DCMAKE_BUILD_TYPE=Release             -DUSE_MKL=OFF             -DUSE_FFTW=OFF             -DUSE_HYPRE=OFF             -DUSE_LEVMAR=OFF             -DUSE_MMG=OFF             -DUSE_NLOPT=OFF             -DUSE_SUPERLU_MT=OFF             -DUSE_ZLIB=OFF             -DUSE_STATIC_STDLIBS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-fopenmp" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fopenmp"
 
       - name: Build FEBio
         run: |
