@@ -14,7 +14,8 @@ Material:
 - K = 850 MPa placeholder until measured compressibility/D is supplied
 
 Loading:
-- pressure ramp 0 -> 5 MPa
+- displacement-controlled seating ramp, top surface 0 -> -0.10 um
+- reaction force is used to recover nominal pressure
 
 Contact:
 - sliding-elastic normal contact
@@ -44,7 +45,7 @@ INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact r
 C10_MPA = 0.20
 C01_MPA = 0.65
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_PRESSURE_MPA = 5.0
+MAX_INDENTATION_UM = 0.10
 CONTACT_PENALTY_MPA_PER_UM = 10.0  # ~E0 / first-layer height = 5.1 / 0.5
 
 TIME_STEPS = 100
@@ -284,13 +285,19 @@ def main():
             points=feb.loaddata.CurvePoints(points=["0,0", "1,1"]),
         )
     )
-    model.loads_.add_surface_load(
-        feb.loads.PressureLoad(
-            surface="rubber_top",
-            pressure=feb.loads.Scale(lc=1, text=MAX_PRESSURE_MPA),
-            linear=0,
-            shell_bottom=0,
-            symmetric_stiffness=1,
+    top_nodes = rub_nodes[:, :, -1].reshape(-1).tolist()
+    model.mesh_.add_node_set(
+        feb.mesh.NodeSet(
+            name="rubber_top_nodes",
+            text=",".join(map(str, top_nodes)),
+        )
+    )
+    model.boundary_.add_bc(
+        feb.boundary.BCPrescribedDisplacement(
+            node_set="rubber_top_nodes",
+            dof="z",
+            value=feb.boundary.Value(lc=1, text=-MAX_INDENTATION_UM),
+            relative=0,
         )
     )
 
@@ -303,6 +310,7 @@ def main():
                 feb.output.Var(type="contact pressure"),
                 feb.output.Var(type="contact gap"),
                 feb.output.Var(type="contact status"),
+                feb.output.Var(type="reaction forces"),
             ]
         )
     )
@@ -319,7 +327,8 @@ def main():
     print(f"Profile points: {nx}")
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
-    print(f"Pressure ramp: 0 -> {MAX_PRESSURE_MPA} MPa")
+    print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um")
+    print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
 
