@@ -1,0 +1,82 @@
+name: B129 FEBio Stage 1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "models/b129_stage1/**"
+      - "requirements.txt"
+      - ".github/workflows/run_b129_fem.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  b129-contact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout sealFE
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate FEBio input
+        run: |
+          python -m py_compile models/b129_stage1/generate_model.py
+          python models/b129_stage1/generate_model.py
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
+
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+
+      - name: Configure FEBio without external linear solvers
+        run: |
+          cmake -S .febio-src -B .febio-build             -DCMAKE_BUILD_TYPE=Release             -DUSE_MKL=OFF             -DUSE_FFTW=OFF             -DUSE_HYPRE=OFF             -DUSE_LEVMAR=OFF             -DUSE_MMG=OFF             -DUSE_NLOPT=OFF             -DUSE_SUPERLU_MT=OFF             -DUSE_ZLIB=OFF             -DUSE_STATIC_STDLIBS=OFF
+
+      - name: Build FEBio
+        run: |
+          cmake --build .febio-build --target febio4 --parallel 2
+          ./.febio-build/bin/febio4 -v
+
+      - name: Run B129 nonlinear contact solve
+        id: solve
+        continue-on-error: true
+        run: |
+          mkdir -p results
+          cd models/b129_stage1
+          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" -i B129_stage1_normal_contact.feb             > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
+
+      - name: Collect FEM outputs
+        if: always()
+        run: |
+          mkdir -p results
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \)             -exec cp {} results/ \; || true
+          echo "solve_outcome=${{ steps.solve.outcome }}" > results/workflow_status.txt
+
+      - name: Upload FEBio results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-stage1-FEBio-results
+          path: results/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail workflow if FEBio solve failed
+        if: steps.solve.outcome == 'failure'
+        run: exit 1
