@@ -159,6 +159,7 @@ def main():
                 max_refs=100,
                 lsiter=10,
                 lsmin=0.001,
+                ls_check_jacobians=1,
                 qn_method=feb.control.FullNewtonMethod(),
             ),
         )
