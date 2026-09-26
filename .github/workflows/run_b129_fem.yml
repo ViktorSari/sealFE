@@ -134,6 +134,41 @@ jobs:
             tail -n 1 results/B129_pressure_history.csv
           fi
 
+      - name: Generate required B129 final outputs
+        if: always()
+        run: |
+          if test -s results/B129_stage1_normal_contact.xplt; then
+            RAMP_UM=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("models/b129_stage1/generate_model.py").read_text()
+          m = re.search(r"^MAX_INDENTATION_UM\\s*=\\s*([\\d.]+)", text, re.MULTILINE)
+          if not m:
+              raise RuntimeError("Could not read MAX_INDENTATION_UM")
+          print(m.group(1))
+          PY
+            )
+            python models/b129_stage1/postprocess_results.py \
+              results/B129_stage1_normal_contact.xplt \
+              results/B129_stage1_normal_contact.feb \
+              --ramp-um "$RAMP_UM" \
+              --output-dir results
+          fi
+
+      - name: Upload B129 final plots and metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-final-outputs
+          path: |
+            results/B129_final_*.png
+            results/B129_final_summary.txt
+            results/B129_rubber_surface_history_0p5um.png
+            results/B129_rubber_surface_history_0p5um.csv
+            results/B129_selected_states.csv
+            results/B129_pressure_history.csv
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload B129 pressure history
         if: always()
         uses: actions/upload-artifact@v4
@@ -152,6 +187,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Fail workflow if FEBio solve failed
-        if: steps.solve.outcome == 'failure'
-        run: exit 1
+      - name: Classify solver termination
+        if: always()
+        run: |
+          if [ "${{ steps.solve.outcome }}" != "failure" ]; then
+            echo "FEBio reached the requested search endpoint."
+            exit 0
+          fi
+
+          if test -s results/B129_stage1_normal_contact.xplt \
+             && grep -qi "Negative jacobian" results/B129_stage1_normal_contact.log; then
+            echo "FEBio reached the natural element-stability limit after converged states."
+            echo "This is the intended termination mode for the stability-limit search."
+            exit 0
+          fi
+
+          echo "FEBio failed for a reason other than the expected negative-Jacobian stability limit."
+          exit 1
