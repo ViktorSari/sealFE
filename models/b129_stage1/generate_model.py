@@ -46,7 +46,7 @@ C10_MPA = 0.348
 C01_MPA = 0.886
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0  # search ramp for mesh-sensitivity stability limit
-DISPLACEMENT_INCREMENT_UM = 0.05
+DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
