@@ -46,7 +46,7 @@ C10_MPA = 0.348
 C01_MPA = 0.886
 BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0  # search ramp for mesh-sensitivity stability limit
-DISPLACEMENT_INCREMENT_UM = 0.1
+DISPLACEMENT_INCREMENT_UM = 0.05
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
@@ -159,7 +159,6 @@ def main():
                 max_refs=100,
                 lsiter=10,
                 lsmin=0.001,
-                ls_check_jacobians=1,
                 qn_method=feb.control.FullNewtonMethod(),
             ),
         )
@@ -345,6 +344,8 @@ def main():
                 feb.output.Var(type="contact pressure"),
                 feb.output.Var(type="contact gap"),
                 feb.output.Var(type="contact status"),
+                feb.output.Var(type="contact traction"),
+                feb.output.Var(type="nodal contact pressure"),
                 feb.output.Var(type="reaction forces"),
             ]
         )
