@@ -142,7 +142,7 @@ jobs:
           import re
           from pathlib import Path
           text = Path("models/b129_stage1/generate_model.py").read_text()
-          m = re.search(r"^MAX_INDENTATION_UM\\s*=\\s*([\\d.]+)", text, re.MULTILINE)
+          m = re.search(r"^MAX_INDENTATION_UM\s*=\s*([\d.]+)", text, re.MULTILINE)
           if not m:
               raise RuntimeError("Could not read MAX_INDENTATION_UM")
           print(m.group(1))
