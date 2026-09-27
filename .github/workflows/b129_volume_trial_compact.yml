@@ -1,0 +1,34 @@
+name: B129 volume trial compact results
+
+on:
+  push:
+    branches: [codex/b129-volume-augmentation-fix]
+    paths:
+      - ".github/workflows/b129_volume_trial_compact.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download completed baseline artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: B129-volaug-baseline_K850_noaug
+          path: source
+          run-id: 36324031328
+          github-token: ${{ github.token }}
+      - name: Keep numerical diagnostics only
+        run: |
+          mkdir -p compact
+          cp source/B129_selected_states.csv source/B129_J_diagnostics.csv source/B129_pressure_history.csv source/B129_final_summary.txt source/augmentation_case.txt compact/
+          tail -n 100 source/B129_stage1_normal_contact.log > compact/solver_log_tail.txt
+      - name: Upload compact result
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-volaug-baseline-compact
+          path: compact/
+          retention-days: 14
