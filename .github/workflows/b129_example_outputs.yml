@@ -34,6 +34,7 @@ jobs:
           test -s example/B129_contact_line_five_levels.png
           test -s example/B129_indentation_0p1um.gif
           test -s example/B129_contact_length_ratio.csv
+          test -s example/B129_surface_evolution.png
           test -s example/B129_surface_evolution.csv
           printf 'Source run: https://github.com/ViktorSari/sealFE/actions/runs/36324031328\nSource case: augmented K=5000 MPa\nOutput status: example draft\n' > example/README.txt
       - uses: actions/upload-artifact@v4
