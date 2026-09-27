@@ -1,0 +1,40 @@
+name: B129 contact augmentation step compact diagnostics
+
+on:
+  push:
+    branches: [codex/b129-contact-closure]
+    paths: ['.github/workflows/b129_contact_aug_step_compact.yml']
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Download three completed cases
+        uses: actions/download-artifact@v4
+        with:
+          pattern: B129-contact-aug-step-*
+          path: input
+          merge-multiple: false
+          run-id: 36330795746
+          github-token: ${{ github.token }}
+      - name: Collect numerical diagnostics
+        run: |
+          mkdir -p compact
+          for case_dir in input/B129-contact-aug-step-*; do
+            case_name="${case_dir##*/}"
+            mkdir -p "compact/$case_name"
+            cp "$case_dir"/*.csv "$case_dir"/*summary.txt "$case_dir"/case_settings.txt "compact/$case_name/"
+            tail -n 100 "$case_dir"/B129_stage1_normal_contact.log > "compact/$case_name/solver_log_tail.txt"
+          done
+      - name: Upload compact results
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-contact-aug-step-compact
+          path: compact/
+          if-no-files-found: error
+          retention-days: 14
