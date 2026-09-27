@@ -60,10 +60,136 @@ All runs use displacement-controlled top loading and a maximum external displace
 | [76](https://github.com/ViktorSari/sealFE/actions/runs/36219105268) | 5f7db4a | Added 7.5 µm node for uniform 1.5 µm layers through 9 µm | 5.114711 | 13.695423 | Negative rubber element Jacobians; final failed time 0.102306, 56 inversions on final retry, last reported element 1449. All 308 stored pressure values were monotonic. |
 | [77](https://github.com/ViktorSari/sealFE/actions/runs/36219110557) | d1e8cc4 | Added 10.5 µm node for uniform 1.5 µm layers through 12 µm | 5.146128 | 13.889011 | Negative rubber element Jacobians; final failed time 0.102941, 376 inversions on final retry, last reported element 554. All 310 stored pressure values were monotonic. |
 
-| [85](https://github.com/ViktorSari/sealFE/actions/runs/36254575169) | 7990788 | Reference physics with 0.05 µm maximum external displacement increment; added contact traction/nodal pressure output requests | 4.442618 | 8.284734 | Negative Jacobian; 0–5 MPa branch agrees closely with run 82, but stability limit is substantially lower than the 0.1 µm reference, so 0.05 µm increment was rejected as the production reference. |\n\nRuns 49–58 are invalid setup attempts: the FEM solve did not start because the generated Python contained an escaped-newline `SyntaxError`. Run 59 corrected both the generator and displacement diagnostics.
+| [85](https://github.com/ViktorSari/sealFE/actions/runs/36254575169) | 7990788 | Reference physics with 0.05 µm maximum external displacement increment; added contact traction/nodal pressure output requests | 4.442618 | 8.284734 | Negative Jacobian; 0–5 MPa branch agrees closely with run 82, but stability limit is substantially lower than the 0.1 µm reference, so 0.05 µm increment was rejected as the production reference. |
+| [86](https://github.com/ViktorSari/sealFE/actions/runs/36261831686) | 2b29a37 | Restored 0.1 µm reference increment with active contact outputs | 5.152656 | 14.157748 | Successful workflow classification after the expected negative-Jacobian stability limit; all 0.5–5 MPa report metrics exactly reproduce run 81. |
+
+Runs 49–58 are invalid setup attempts: the FEM solve did not start because the generated Python contained an escaped-newline `SyntaxError`. Run 59 corrected both the generator and displacement diagnostics.
 
 Penalty-only runs 24–25 have a load drop near failure and do not establish useful progress toward 5 MPa. Run 27 crosses 5 MPa between converged states (4.014428 µm, 4.999290 MPa) and (4.017837 µm, 5.025094 MPa). Linear interpolation gives 4.014521 µm at 5 MPa. Its converged nominal pressure increases monotonically over the stored states; the solve later fails by element inversion. Run 28 extends the monotonic branch to 4.347901 µm and 7.651088 MPa; the next attempted step (4.348470 µm) inverts rubber elements. A verification run will stop at 4.30 µm, inside the established converged interval. The bulk modulus (850 MPa) is a placeholder and absolute pressure predictions require material validation.
 
 Runs 31–33 failed within 0.0015 µm of their respective endpoints. Run 34 tests whether extending the same linear load curve beyond analysis time 1 removes an endpoint discontinuity; the displacement at t=1 remains 4.20 µm.
 
 Run 35 reproduced the run-28 maximum exactly: 4.347901 µm and 7.651088 MPa, with a monotonic pressure branch. Run 36 refined only the first 3 µm of rubber to 0.5 µm layers. For the 0–5 MPa target range the mesh sensitivity is negligible: interpolated 5 MPa indentation is 4.014521 µm (2 µm coarse), 4.014708 µm (1 µm baseline), and 4.014627 µm (0.5 µm fine). The fine mesh later fails at 4.158708 µm / 6.136954 MPa, so further maximum-indentation tuning is not required for the 0–5 MPa study.
+
+
+## Stage-1 output validation, 2026-09-26
+
+Run [82](https://github.com/ViktorSari/sealFE/actions/runs/36245418492),
+commit `31d3aaacc0f4b17757966658b794ae748151db36`: workflow/postprocess parsing
+only; 319 stored states; last converged indentation 5.152655765 um and
+nominal pressure 14.157748301 MPa (verified job log). Negative Jacobian at
+failed time 0.103064, last reported element 1164. Required-output step succeeded.
+The scientific completeness of those outputs still required the corrections below.
+
+New postprocessing was exercised on the locally available run-81 FEB/XPLT,
+which reproduces those endpoint values. No physical model change:
+- Select rubber_bottom surface by XPLT name and verify connectivity against FEB.
+- Preserve all converged states; omit failed/debug states.
+- Export facet-average contact pressure, independent geometry gap diagnostics,
+  reaction equilibrium, same-pressure metrics, full/focused/deformed meshes,
+  true-scale stress isolines, and exact final surface CSV.
+- Fix NumPy multidimensional unique-inverse handling in contour recovery.
+- At interpolated 5 MPa, max sampled vertical penetration is 0.141204 um;
+  maximum FEBio facet-average contact gap is 0.090393 um. They are different
+  measures and must not be equated. The projected pressure/reaction mismatch
+  is approximately -0.000043 percent. At final state penetration is 0.297843 um.
+- Positive-pressure facets cover the full projected length by 3 MPa, but this
+  does NOT prove full Gauss-point contact: partial facets can be overcounted.
+
+Priority: quantify and control penetration before publication acceptance.
+The reference FEB has gaptol=0, tolerance=0.01, maxaug=25. FEBio v4.13
+FESlidingElasticInterface::Augment forces bconv=true when naug>=maxaug;
+therefore inspect augmentation-limit events in each accepted state.
+Do not change penalty merely to extend the inversion endpoint.
+Run 86 completed successfully. The active `rubber_bottom` facet-average pressure
+integrates to the top reaction within -0.000043% at interpolated 5 MPa and
+-0.0000018% at the final stable state. Run 86 is numerically identical to run 81
+at every reported 0.5–5 MPa metric. The solver log also proves that the first
+accepted loaded step (time 0.002, about 0.00137 MPa) reached augmentation #26
+with maxaug=25; FEBio forced acceptance while D-multiplier change was 0.0150706,
+above the requested 0.01. No later accepted step reached maxaug. This low-load
+event is now reported explicitly and is not evidence of contact-tolerance
+convergence.
+
+## Local controlled vertical mesh sensitivity, 2026-09-27
+
+These runs are local-only evidence on branch
+`codex/b129-contact-output-validation`; they have not been published to GitHub.
+FEBio 4.13 (`32ae206ff4881dfb54f62296cd1558e58ed9fcc6`) was built with the same
+negative-Jacobian diagnostic patch used by the workflow. Only the rubber
+vertical node sequence changed; material, measured rigid profile, lateral
+resolution, contact settings, load ramp, and output requests remained fixed.
+The generated reference FEB is byte-identical to run 86.
+
+| Case | Near-surface vertical spacing | Rubber elements | Last converged indentation (um) | Nominal pressure (MPa) | Stored states | Failure |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| coarse | 3.0 um | 4000 | 4.545358 | 9.193136 | 254 | Negative Jacobian after the 5 MPa targets |
+| reference (run 86) | 1.5 um | 4800 | 5.152656 | 14.157748 | 319 | Negative Jacobian after the 5 MPa targets |
+| fine | 0.75 um | 6800 | 5.047650 | 13.161693 | 290 | Negative Jacobian after the 5 MPa targets |
+
+At identical 5 MPa, relative to the reference, coarse/fine differences are:
+
+| Metric | Coarse | Fine |
+| --- | ---: | ---: |
+| Indentation | +0.0150% | -0.0105% |
+| Projected contact fraction | 0.0000% | 0.0000% |
+| Facet-average pressure maximum | +2.5726% | -0.3091% |
+| Maximum geometric penetration | +0.0751% | +0.6005% |
+| Maximum FEBio facet-average gap | +3.7164% | -0.7871% |
+| Maximum von Mises stress | -10.3835% | -2.5580% |
+| P95 von Mises stress | -6.2132% | +11.6820% |
+| Maximum principal Lagrange strain | -11.1340% | -3.3889% |
+| P95 principal Lagrange strain | -6.8963% | +13.5121% |
+
+Across all 0.5/1/2/3/4/5 MPa targets, fine/reference indentation differs by
+at most 0.0772%, projected contact fraction by 1.0955%, and facet-average
+pressure maximum by 2.3172%. Fine/reference maximum stress and strain differ by
+at most 2.8121% and 4.0459%, respectively. The P95 stress/strain measures are
+not vertically mesh-converged: their maximum fine/reference deviations are
+12.6048% and 14.4700%. At low pressure, the maximum gap/penetration measures
+also retain about 6% sensitivity. Therefore the reference is adequate for
+global indentation and the reported 5 MPa contact pressure, but Stage-1 must
+retain a local stress/strain discretization limitation.
+
+All three cases reached augmentation #26 only on the first accepted loaded step
+with configured `maxaug=25`; no later accepted step reached the limit. The first
+step D-multiplier changes were 0.0165553 (coarse), 0.0150706 (reference), and
+0.0143054 (fine), so this remains a separately labelled low-load forced
+acceptance rather than a contact-tolerance convergence result. Final reaction
+balance errors from the active facet-average pressure were below 0.000004% in
+the two new local runs.
+
+## Local contact-convergence sensitivity, 2026-09-27
+
+These are local-only reference-mesh runs. Material, mesh, measured profile,
+penalty, gaptol, load ramp, and boundary conditions were unchanged. The tests
+altered one solver-contact parameter at a time.
+
+| tolerance | maxaug | Last converged indentation (um) | Nominal pressure (MPa) | Stored states | Maximum logged augmentation | Forced acceptance |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.0100 | 25 | 5.152656 | 14.157748 | 319 | 26 | 1 first-step event |
+| 0.0100 | 50 | 5.100218 | 13.567010 | 305 | 36 | 0 |
+| 0.0075 | 50 | 4.412636 | 8.372837 | 279 | 42 | 0 |
+| 0.0050 | 50 | 3.652866 | 2.432740 | 192 | 50 | 0 |
+
+Raising only `maxaug` from 25 to 50 removes the first-step forced acceptance.
+At identical 5 MPa, relative to the original 0.01/25 reference, the 0.01/50
+case changes indentation by -0.0114%, facet pressure maximum by +0.0071%,
+geometric penetration by -0.2396%, FEBio facet-average gap by -0.4995%, and all
+reported stress/strain metrics by at most 0.0057%. `maxaug=50` is therefore the
+supported solver-convergence correction; it is not justified by its unrelated
+negative-Jacobian endpoint.
+
+Tightening only tolerance from 0.0100 to 0.0075, both with `maxaug=50`, changes
+the 5 MPa indentation by -0.5353% and facet pressure maximum by +0.0603%, while
+stress/strain metrics change by less than 0.095%. However, geometric penetration
+drops from 0.140865 to 0.108828 um (-22.74%) and FEBio gap from 0.089942 to
+0.068756 um (-23.56%). At tolerance 0.0050 the run does not reach 3 MPa; through
+the available 0.5/1/2 MPa targets, penetration and FEBio gap are another
+38-52% lower than the 0.0100/50 case while global/stress metrics remain much
+less sensitive. Thus indentation, pressure, stress, and strain are effectively
+stable with contact tolerance, but local penetration/gap are not converged.
+Do not select 0.0075 merely because it is the tightest tested setting that
+survives beyond 5 MPa. Preserve the 0.0100 reference result, remove its forced
+acceptance with `maxaug=50` for the next production reproduction, and report
+the penetration/gap tolerance interval as a Stage-1 limitation.

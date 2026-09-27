@@ -155,6 +155,7 @@ jobs:
             python models/b129_stage1/postprocess_results.py \
               results/B129_stage1_normal_contact.xplt \
               results/B129_stage1_normal_contact.feb \
+              --log results/B129_stage1_normal_contact.log \
               --ramp-um "$RAMP_UM" \
               --output-dir results
           fi
@@ -165,12 +166,11 @@ jobs:
         with:
           name: B129-final-outputs
           path: |
-            results/B129_final_*.png
+            results/B129_*.png
+            results/B129_*.csv
+            results/B129_*.json
+            results/B129_*.md
             results/B129_final_summary.txt
-            results/B129_rubber_surface_history_0p5um.png
-            results/B129_rubber_surface_history_0p5um.csv
-            results/B129_selected_states.csv
-            results/B129_pressure_history.csv
           if-no-files-found: warn
           retention-days: 14
       - name: Upload B129 pressure history
