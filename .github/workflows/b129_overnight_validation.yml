@@ -1,0 +1,126 @@
+name: B129 overnight boundary and finalization study
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/b129-overnight-validation]
+    paths:
+      - '.github/workflows/b129_overnight_validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {case: reference_clean, mode: rollers, stiffness: '0', height: '100', subdiv: '1', endpoint: '3.42'}
+          - {case: free_sides, mode: free, stiffness: '0', height: '100', subdiv: '1', endpoint: '50'}
+          - {case: elastic_E_over_H, mode: elastic, stiffness: '0.07404', height: '100', subdiv: '1', endpoint: '50'}
+          - {case: elastic_10E_over_H, mode: elastic, stiffness: '0.7404', height: '100', subdiv: '1', endpoint: '20'}
+          - {case: profile_refined_x2, mode: rollers, stiffness: '0', height: '100', subdiv: '2', endpoint: '3.5'}
+          - {case: depth_200um, mode: rollers, stiffness: '0', height: '200', subdiv: '1', endpoint: '5.0'}
+    env:
+      B129_SURFACE_DZ_UM: '0.75'
+      B129_X_SUBDIV: ${{ matrix.subdiv }}
+      B129_CONTACT_PENALTY_MPA_PER_UM: '0.40'
+      B129_CONTACT_AUG_TOL: '0.01'
+      B129_CONTACT_MAX_AUG: '25'
+      B129_BULK_MODULUS_MPA: '2000.0'
+      B129_VOLUME_AUGMENT: '1'
+      B129_VOLUME_AUGTOL: '0.01'
+      B129_RUBBER_HEIGHT_UM: ${{ matrix.height }}
+      B129_MAX_INDENTATION_UM: ${{ matrix.endpoint }}
+      B129_DISPLACEMENT_INCREMENT_UM: '0.05'
+      B129_INITIAL_GAP_UM: '-0.001'
+      B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
+      B129_SUPPORT_MODE: ${{ matrix.mode }}
+      B129_SIDE_STIFFNESS_MPA_PER_UM: ${{ matrix.stiffness }}
+      B129_SOLVER_DTOL: '0.01'
+      B129_SOLVER_ETOL: '0.01'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Generate case
+        run: |
+          mkdir -p results
+          python studies/b129_boundary_study.py
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q '<tolerance>0.01</tolerance>' models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q '<maxaug>25</maxaug>' models/b129_stage1/B129_stage1_normal_contact.feb
+          env | grep '^B129_' | sort > results/case_settings.txt
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+      - name: Configure FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
+      - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: cmake --build .febio-build --target febio4 --parallel 2
+      - name: Run FEBio
+        id: solve
+        continue-on-error: true
+        run: |
+          cd models/b129_stage1
+          timeout 95m '${{ github.workspace }}/.febio-build/bin/febio4' -i B129_stage1_normal_contact.feb > '${{ github.workspace }}/results/febio_stdout.txt' 2>&1
+      - name: Analyze converged states
+        if: always()
+        run: |
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name '*.xplt' -o -name '*.log' \) -exec cp {} results/ \; || true
+          echo 'solve_outcome=${{ steps.solve.outcome }}' >> results/case_settings.txt
+          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um "${B129_MAX_INDENTATION_UM}" --output-dir results
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-overnight-${{ matrix.case }}
+          path: results/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Require successful reference solve
+        if: always() && matrix.case == 'reference_clean'
+        env:
+          SOLVE_OUTCOME: ${{ steps.solve.outcome }}
+        run: |
+          test "$SOLVE_OUTCOME" = success
+          grep -q '^reached_5MPa=1$' results/B129_final_summary.txt
+
+  summarize:
+    if: always()
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: B129-overnight-*
+          path: collected
+      - name: Build compact comparison
+        run: python studies/b129_overnight_summary.py collected comparison
+      - uses: actions/upload-artifact@v4
+        with:
+          name: B129-overnight-comparison
+          path: comparison/
+          retention-days: 30
