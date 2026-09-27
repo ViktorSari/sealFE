@@ -28,6 +28,7 @@ so the CI build does not require Intel MKL.
 """
 
 from pathlib import Path
+import os
 import numpy as np
 import pyfebio as feb
 
@@ -37,17 +38,22 @@ HERE = Path(__file__).resolve().parent
 PROFILE_CSV = HERE / "B129_400_600um_profile.csv"
 OUTPUT_FEB = HERE / "B129_stage1_normal_contact.feb"
 
+def env_float(name, default):
+    """Read an optional numerical override used by controlled CI sensitivity runs."""
+    return float(os.environ.get(name, default))
+
+
 OUT_OF_PLANE_UM = 1.0
 RUBBER_HEIGHT_UM = 100.0
 AL_BASE_MARGIN_UM = 5.0
-INITIAL_GAP_UM = -0.001  # 1 nm numerical seating overlap; avoids zero-contact rigid z mode
+INITIAL_GAP_UM = env_float("B129_INITIAL_GAP_UM", -0.001)  # default 1 nm seating overlap
 
 C10_MPA = 0.348
 C01_MPA = 0.886
-BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
-MAX_INDENTATION_UM = 50.0  # search ramp for mesh-sensitivity stability limit
-DISPLACEMENT_INCREMENT_UM = 0.1
-CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
+BULK_MODULUS_MPA = env_float("B129_BULK_MODULUS_MPA", 850.0)  # placeholder; sensitivity-tested
+MAX_INDENTATION_UM = env_float("B129_MAX_INDENTATION_UM", 50.0)
+DISPLACEMENT_INCREMENT_UM = env_float("B129_DISPLACEMENT_INCREMENT_UM", 0.1)
+CONTACT_PENALTY_MPA_PER_UM = env_float("B129_CONTACT_PENALTY_MPA_PER_UM", 0.30)
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
@@ -341,6 +347,7 @@ def main():
                 feb.output.Var(type="displacement"),
                 feb.output.Var(type="stress"),
                 feb.output.Var(type="Lagrange strain"),
+                feb.output.Var(type="relative volume"),
                 feb.output.Var(type="contact pressure"),
                 feb.output.Var(type="contact gap"),
                 feb.output.Var(type="contact status"),
@@ -365,7 +372,7 @@ def main():
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
-    print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa")
+    print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")\n    print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
