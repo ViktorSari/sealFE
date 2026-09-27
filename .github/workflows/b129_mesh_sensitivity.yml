@@ -1,0 +1,150 @@
+name: B129 mesh sensitivity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/b129_mesh_sensitivity.yml"
+      - "studies/b129_mesh_sensitivity.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b129-mesh-sensitivity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mesh:
+    name: ${{ matrix.case }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - case: mesh_coarse_z3
+            surface_dz: "3.0"
+            x_subdiv: "1"
+          - case: mesh_reference
+            surface_dz: "1.5"
+            x_subdiv: "1"
+          - case: mesh_fine_z0p75
+            surface_dz: "0.75"
+            x_subdiv: "1"
+          - case: mesh_fine_x0p25
+            surface_dz: "1.5"
+            x_subdiv: "2"
+          - case: mesh_fine_both
+            surface_dz: "0.75"
+            x_subdiv: "2"
+
+    env:
+      B129_SURFACE_DZ_UM: ${{ matrix.surface_dz }}
+      B129_X_SUBDIV: ${{ matrix.x_subdiv }}
+      B129_CONTACT_PENALTY_MPA_PER_UM: "0.30"
+      B129_BULK_MODULUS_MPA: "850.0"
+      B129_RUBBER_HEIGHT_UM: "100.0"
+      B129_MAX_INDENTATION_UM: "4.2"
+      B129_DISPLACEMENT_INCREMENT_UM: "0.1"
+      B129_INITIAL_GAP_UM: "-0.001"
+
+    steps:
+      - name: Checkout sealFE
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate mesh variant
+        run: |
+          python -m py_compile studies/b129_mesh_sensitivity.py
+          python -m py_compile models/b129_stage1/postprocess_results.py
+          python studies/b129_mesh_sensitivity.py
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q '<var type="relative volume"' models/b129_stage1/B129_stage1_normal_contact.feb
+          mkdir -p results
+          {
+            echo "case=${{ matrix.case }}"
+            echo "surface_dz_um=${{ matrix.surface_dz }}"
+            echo "x_subdiv=${{ matrix.x_subdiv }}"
+            echo "max_indentation_um=4.2"
+          } > results/mesh_case.txt
+
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+
+      - name: Configure FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S .febio-src -B .febio-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF \
+            -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF \
+            -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-fopenmp" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fopenmp"
+
+      - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: cmake --build .febio-build --target febio4 --parallel 2
+
+      - name: Run FEBio mesh case
+        id: solve
+        continue-on-error: true
+        run: |
+          cd models/b129_stage1
+          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" \
+            -i B129_stage1_normal_contact.feb \
+            > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
+
+      - name: Collect outputs
+        if: always()
+        run: |
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \) \
+            -exec cp {} results/ \; || true
+          echo "solve_outcome=${{ steps.solve.outcome }}" >> results/mesh_case.txt
+
+      - name: Postprocess converged states
+        if: always()
+        run: |
+          if test -s results/B129_stage1_normal_contact.xplt; then
+            python models/b129_stage1/postprocess_results.py \
+              results/B129_stage1_normal_contact.xplt \
+              results/B129_stage1_normal_contact.feb \
+              --ramp-um 4.2 \
+              --output-dir results
+          else
+            echo "No XPLT produced" >&2
+            exit 1
+          fi
+
+      - name: Upload mesh-sensitivity result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-mesh-${{ matrix.case }}
+          path: results/
+          if-no-files-found: error
+          retention-days: 14
