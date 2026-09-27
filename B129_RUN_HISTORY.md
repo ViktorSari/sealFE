@@ -67,3 +67,16 @@ Penalty-only runs 24–25 have a load drop near failure and do not establish use
 Runs 31–33 failed within 0.0015 µm of their respective endpoints. Run 34 tests whether extending the same linear load curve beyond analysis time 1 removes an endpoint discontinuity; the displacement at t=1 remains 4.20 µm.
 
 Run 35 reproduced the run-28 maximum exactly: 4.347901 µm and 7.651088 MPa, with a monotonic pressure branch. Run 36 refined only the first 3 µm of rubber to 0.5 µm layers. For the 0–5 MPa target range the mesh sensitivity is negligible: interpolated 5 MPa indentation is 4.014521 µm (2 µm coarse), 4.014708 µm (1 µm baseline), and 4.014627 µm (0.5 µm fine). The fine mesh later fails at 4.158708 µm / 6.136954 MPa, so further maximum-indentation tuning is not required for the 0–5 MPa study.
+
+## Volumetric augmentation trial, 2026-09-27
+
+These cases retain the measured profile, MR2 C10/C01, reference mesh/contact, 100 µm rubber height and 0.1 µm maximum external increment. The 4.2 µm commanded endpoint is a numerical trial; a valid negative-Jacobian limit preserves the last converged state. See [B129_VOLUME_AUGMENTATION_RESULTS.md](B129_VOLUME_AUGMENTATION_RESULTS.md) for the equal-pressure comparison.
+
+| Run / case | Commit | Actual model change | Last converged indentation (µm) | Nominal pressure (MPa) | Termination |
+| --- | --- | --- | ---: | ---: | --- |
+| [Volaug #2](https://github.com/ViktorSari/sealFE/actions/runs/36323361375), augmented K=850/5000 | faf584f | Attempted optional three-field volume augmentation, but malformed regex | unavailable | unavailable | Model-generation error; FEBio did not start |
+| [Volaug #3](https://github.com/ViktorSari/sealFE/actions/runs/36324031328), baseline K=850 | 98d81f6 | No volume augmentation; corrected generator only | 4.200000 | 6.435381 | Normal commanded endpoint |
+| [Volaug #3](https://github.com/ViktorSari/sealFE/actions/runs/36324031328), augmented K=850 | 98d81f6 | Three-field volume augmentation (atol=0.01), K=850 MPa numerical parameter | 3.410196 | 3.130370 | Negative Jacobian; 5 MPa not reached |
+| [Volaug #3](https://github.com/ViktorSari/sealFE/actions/runs/36324031328), augmented K=5000 | 98d81f6 | Same augmentation, K=5000 MPa | 3.553048 | 11.977052 | Negative Jacobian after 5 MPa |
+| [K-convergence #1](https://github.com/ViktorSari/sealFE/actions/runs/36325181890), augmented K=2000 | 960823a | Same augmentation, K=2000 MPa | 3.523848 | 10.053928 | Negative Jacobian after 5 MPa |
+| [K-convergence #1](https://github.com/ViktorSari/sealFE/actions/runs/36325181890), augmented K=10000 | 960823a | Same augmentation, K=10000 MPa | 3.554610 | 12.159004 | Negative Jacobian after 5 MPa |
