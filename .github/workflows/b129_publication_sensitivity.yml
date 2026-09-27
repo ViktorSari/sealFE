@@ -1,0 +1,158 @@
+name: B129 publication sensitivity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/b129_publication_sensitivity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  sensitivity:
+    name: ${{ matrix.case }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - case: reference
+            penalty: "0.30"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+          - case: penalty_low
+            penalty: "0.15"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+          - case: penalty_high
+            penalty: "0.60"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+          - case: bulk_nu_0p495
+            penalty: "0.30"
+            bulk: "245.9773333333"
+            approx_nu: "0.495"
+          - case: bulk_nu_0p498
+            penalty: "0.30"
+            bulk: "616.1773333333"
+            approx_nu: "0.498"
+          - case: bulk_nu_0p499
+            penalty: "0.30"
+            bulk: "1233.1773333333"
+            approx_nu: "0.499"
+          - case: bulk_nu_0p4995
+            penalty: "0.30"
+            bulk: "2467.1773333333"
+            approx_nu: "0.4995"
+
+    env:
+      B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
+      B129_BULK_MODULUS_MPA: ${{ matrix.bulk }}
+      B129_MAX_INDENTATION_UM: "6.0"
+      B129_DISPLACEMENT_INCREMENT_UM: "0.1"
+      B129_INITIAL_GAP_UM: "-0.001"
+
+    steps:
+      - name: Checkout sealFE
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate sensitivity model
+        run: |
+          python -m py_compile models/b129_stage1/generate_model.py
+          python -m py_compile models/b129_stage1/postprocess_results.py
+          python models/b129_stage1/generate_model.py
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q '<var type="relative volume"' models/b129_stage1/B129_stage1_normal_contact.feb
+          mkdir -p results
+          {
+            echo "case=${{ matrix.case }}"
+            echo "contact_penalty_MPa_per_um=${{ matrix.penalty }}"
+            echo "bulk_modulus_MPa=${{ matrix.bulk }}"
+            echo "approx_nu=${{ matrix.approx_nu }}"
+            echo "max_indentation_um=6.0"
+            echo "max_external_increment_um=0.1"
+            echo "initial_gap_um=-0.001"
+          } > results/sensitivity_case.txt
+
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+
+      - name: Configure FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S .febio-src -B .febio-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF \
+            -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF \
+            -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-fopenmp" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fopenmp"
+
+      - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: cmake --build .febio-build --target febio4 --parallel 2
+
+      - name: Run FEBio sensitivity case
+        id: solve
+        continue-on-error: true
+        run: |
+          cd models/b129_stage1
+          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" \
+            -i B129_stage1_normal_contact.feb \
+            > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
+
+      - name: Collect FEM outputs
+        if: always()
+        run: |
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \) \
+            -exec cp {} results/ \; || true
+          echo "solve_outcome=${{ steps.solve.outcome }}" >> results/sensitivity_case.txt
+
+      - name: Postprocess converged states
+        if: always()
+        run: |
+          if test -s results/B129_stage1_normal_contact.xplt; then
+            python models/b129_stage1/postprocess_results.py \
+              results/B129_stage1_normal_contact.xplt \
+              results/B129_stage1_normal_contact.feb \
+              --ramp-um 6.0 \
+              --output-dir results
+          else
+            echo "No XPLT produced" >&2
+            exit 1
+          fi
+
+      - name: Upload sensitivity result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-pubsens-${{ matrix.case }}
+          path: results/
+          if-no-files-found: error
+          retention-days: 14
