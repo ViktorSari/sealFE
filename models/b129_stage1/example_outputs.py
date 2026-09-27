@@ -420,7 +420,7 @@ def save_surface_history(path, csv_path, states, xyz, bottom_conn, al_x, al_z, x
     plt.close(fig)
 
 
-def front_mesh_edgesdef front_mesh_edges(coords, rubber_conn):
+def front_mesh_edges(coords, rubber_conn):
     faces = rubber_conn[:, [0, 1, 5, 4]]
     q = coords[faces][:, :, [0, 2]]
     return np.stack((q[:, [0, 1]], q[:, [1, 2]], q[:, [2, 3]], q[:, [3, 0]])).reshape(-1, 2, 2)
@@ -500,7 +500,7 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure,
     }
 
 
-def field_points_and_valuesdef field_points_and_values(xyz, rubber_conn, bottom_conn, st, values):
+def field_points_and_values(xyz, rubber_conn, bottom_conn, st, values):
     centers = pp.element_centers_deformed(xyz, rubber_conn, st["displacement"])
     bottom = surface_points(xyz, bottom_conn, st["displacement"])
     edge_ids = np.minimum(np.arange(len(bottom)), len(bottom_conn) - 1)
@@ -579,7 +579,7 @@ def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn
     plt.close(fig)
 
 
-def save_fieldsdef save_fields(paths, xyz, rubber_conn, bottom_conn, states, pressure, al_x, al_z, x0, x1):
+def save_fields(paths, xyz, rubber_conn, bottom_conn, states, pressure, al_x, al_z, x0, x1):
     save_single_field(
         paths["max_principal"], "Maximum principal Lagrange strain", "-",
         lambda s: pp.max_principal_sym6(s["strain"]), "cividis",
