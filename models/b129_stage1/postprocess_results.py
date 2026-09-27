@@ -242,6 +242,74 @@ def element_centers_deformed(xyz, rubber_conn, displacement):
     return xdef[rubber_conn].mean(axis=1)
 
 
+_HEX8_SIGNS = np.array(
+    [
+        [-1.0, -1.0, -1.0],
+        [ 1.0, -1.0, -1.0],
+        [ 1.0,  1.0, -1.0],
+        [-1.0,  1.0, -1.0],
+        [-1.0, -1.0,  1.0],
+        [ 1.0, -1.0,  1.0],
+        [ 1.0,  1.0,  1.0],
+        [-1.0,  1.0,  1.0],
+    ],
+    dtype=float,
+)
+
+
+def hex8_shape_grad_nat(xi, eta, zeta):
+    """Natural-coordinate gradients for the standard HEX8 node order."""
+    sx = _HEX8_SIGNS[:, 0]
+    sy = _HEX8_SIGNS[:, 1]
+    sz = _HEX8_SIGNS[:, 2]
+    d = np.empty((8, 3), dtype=float)
+    d[:, 0] = 0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta)
+    d[:, 1] = 0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta)
+    d[:, 2] = 0.125 * sz * (1.0 + sx * xi) * (1.0 + sy * eta)
+    return d
+
+
+def gauss_point_relative_volume(xyz, rubber_conn, displacement):
+    """Return J=det(F)=V/V0 at all 8 Gauss points of each rubber HEX8."""
+    X = xyz[rubber_conn]
+    x = X + displacement[rubber_conn]
+    g = 1.0 / np.sqrt(3.0)
+    gps = [
+        (xi, eta, zeta)
+        for zeta in (-g, g)
+        for eta in (-g, g)
+        for xi in (-g, g)
+    ]
+    out = np.empty((len(rubber_conn), 8), dtype=float)
+    for k, (xi, eta, zeta) in enumerate(gps):
+        dN = hex8_shape_grad_nat(xi, eta, zeta)
+        J0 = np.einsum("eia,ib->eab", X, dN)
+        Jx = np.einsum("eia,ib->eab", x, dN)
+        det0 = np.linalg.det(J0)
+        detx = np.linalg.det(Jx)
+        if np.any(det0 <= 0.0):
+            raise ValueError("Non-positive reference HEX8 Jacobian detected")
+        out[:, k] = detx / det0
+    return out
+
+
+def relative_volume_stats(J):
+    flat = np.asarray(J, dtype=float).reshape(-1)
+    return {
+        "J_min": float(np.min(flat)),
+        "J_p01": float(np.percentile(flat, 1.0)),
+        "J_p05": float(np.percentile(flat, 5.0)),
+        "J_median": float(np.percentile(flat, 50.0)),
+        "J_p95": float(np.percentile(flat, 95.0)),
+        "J_p99": float(np.percentile(flat, 99.0)),
+        "J_max": float(np.max(flat)),
+        "J_max_abs_dev_from_1": float(np.max(np.abs(flat - 1.0))),
+        "J_nonpositive_count": int(np.count_nonzero(flat <= 0.0)),
+        "J_below_0p95_count": int(np.count_nonzero(flat < 0.95)),
+        "J_above_1p05_count": int(np.count_nonzero(flat > 1.05)),
+    }
+
+
 def geometric_contact_metrics(
     xyz,
     bottom_conn,
@@ -367,6 +435,10 @@ def main():
     final_pressure = pressures[-1]
     final_vm = von_mises(final["stress"])
     final_principal_strain = max_principal_sym6(final["strain"])
+    final_J = gauss_point_relative_volume(
+        xyz, rubber_conn, final["displacement"]
+    )
+    final_Jstat = relative_volume_stats(final_J)
     final_contact = geometric_contact_metrics(
         xyz,
         bottom_conn,
@@ -392,6 +464,17 @@ def main():
                 "max_geometric_gap_um",
                 "max_von_Mises_MPa",
                 "max_principal_Lagrange_strain",
+                "J_min_Gauss",
+                "J_p01_Gauss",
+                "J_p05_Gauss",
+                "J_median_Gauss",
+                "J_p95_Gauss",
+                "J_p99_Gauss",
+                "J_max_Gauss",
+                "J_max_abs_dev_from_1",
+                "J_nonpositive_count",
+                "J_below_0p95_count",
+                "J_above_1p05_count",
             ]
         )
         for target in targets:
@@ -408,6 +491,10 @@ def main():
             )
             vm_i = von_mises(st["stress"])
             e1_i = max_principal_sym6(st["strain"])
+            J_i = gauss_point_relative_volume(
+                xyz, rubber_conn, st["displacement"]
+            )
+            Jstat_i = relative_volume_stats(J_i)
             w.writerow(
                 [
                     target,
@@ -421,6 +508,17 @@ def main():
                     f"{cm['max_geometric_gap_um']:.9g}",
                     f"{np.max(vm_i):.9g}",
                     f"{np.max(e1_i):.9g}",
+                    f"{Jstat_i['J_min']:.9g}",
+                    f"{Jstat_i['J_p01']:.9g}",
+                    f"{Jstat_i['J_p05']:.9g}",
+                    f"{Jstat_i['J_median']:.9g}",
+                    f"{Jstat_i['J_p95']:.9g}",
+                    f"{Jstat_i['J_p99']:.9g}",
+                    f"{Jstat_i['J_max']:.9g}",
+                    f"{Jstat_i['J_max_abs_dev_from_1']:.9g}",
+                    Jstat_i["J_nonpositive_count"],
+                    Jstat_i["J_below_0p95_count"],
+                    Jstat_i["J_above_1p05_count"],
                 ]
             )
 
@@ -437,6 +535,17 @@ def main():
                 f"{final_contact['max_geometric_gap_um']:.9g}",
                 f"{np.max(final_vm):.9g}",
                 f"{np.max(final_principal_strain):.9g}",
+                f"{final_Jstat['J_min']:.9g}",
+                f"{final_Jstat['J_p01']:.9g}",
+                f"{final_Jstat['J_p05']:.9g}",
+                f"{final_Jstat['J_median']:.9g}",
+                f"{final_Jstat['J_p95']:.9g}",
+                f"{final_Jstat['J_p99']:.9g}",
+                f"{final_Jstat['J_max']:.9g}",
+                f"{final_Jstat['J_max_abs_dev_from_1']:.9g}",
+                final_Jstat["J_nonpositive_count"],
+                final_Jstat["J_below_0p95_count"],
+                final_Jstat["J_above_1p05_count"],
             ]
         )
 
@@ -453,6 +562,105 @@ def main():
             f"pnom={final_pressure:.3f} MPa"
         ),
     )
+
+    # Element-distortion / near-incompressibility diagnostics.
+    Jmin_final = np.min(final_J, axis=1)
+    plot_stress_field(
+        out / "B129_final_Jmin_Gauss.png",
+        xyz,
+        rubber_conn,
+        final,
+        Jmin_final,
+        "minimum Gauss-point relative volume J [-]",
+        (
+            "B129 final stable state – minimum Gauss-point J, "
+            f"u={final['indentation_um']:.3f} µm, "
+            f"pnom={final_pressure:.3f} MPa"
+        ),
+    )
+
+    idx5, st5 = nearest_state_by_pressure(states, pressures, 5.0)
+    J5 = gauss_point_relative_volume(
+        xyz, rubber_conn, st5["displacement"]
+    )
+    J5stat = relative_volume_stats(J5)
+    plot_stress_field(
+        out / "B129_final_Jmin_Gauss_at_5MPa.png",
+        xyz,
+        rubber_conn,
+        st5,
+        np.min(J5, axis=1),
+        "minimum Gauss-point relative volume J [-]",
+        (
+            "B129 near 5 MPa – minimum Gauss-point J, "
+            f"u={st5['indentation_um']:.3f} µm, "
+            f"pnom={pressures[idx5]:.3f} MPa"
+        ),
+    )
+
+    with (out / "B129_J_diagnostics.csv").open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(
+            [
+                "state",
+                "indentation_um",
+                "nominal_pressure_MPa",
+                "J_min",
+                "J_p01",
+                "J_p05",
+                "J_median",
+                "J_p95",
+                "J_p99",
+                "J_max",
+                "J_max_abs_dev_from_1",
+                "J_nonpositive_count",
+                "J_below_0p95_count",
+                "J_above_1p05_count",
+            ]
+        )
+        for target in targets:
+            idx, st = nearest_state_by_pressure(states, pressures, target)
+            Js = relative_volume_stats(
+                gauss_point_relative_volume(
+                    xyz, rubber_conn, st["displacement"]
+                )
+            )
+            w.writerow(
+                [
+                    f"{target:g}MPa",
+                    f"{st['indentation_um']:.9g}",
+                    f"{pressures[idx]:.9g}",
+                    f"{Js['J_min']:.9g}",
+                    f"{Js['J_p01']:.9g}",
+                    f"{Js['J_p05']:.9g}",
+                    f"{Js['J_median']:.9g}",
+                    f"{Js['J_p95']:.9g}",
+                    f"{Js['J_p99']:.9g}",
+                    f"{Js['J_max']:.9g}",
+                    f"{Js['J_max_abs_dev_from_1']:.9g}",
+                    Js["J_nonpositive_count"],
+                    Js["J_below_0p95_count"],
+                    Js["J_above_1p05_count"],
+                ]
+            )
+        w.writerow(
+            [
+                "FINAL_STABLE",
+                f"{final['indentation_um']:.9g}",
+                f"{final_pressure:.9g}",
+                f"{final_Jstat['J_min']:.9g}",
+                f"{final_Jstat['J_p01']:.9g}",
+                f"{final_Jstat['J_p05']:.9g}",
+                f"{final_Jstat['J_median']:.9g}",
+                f"{final_Jstat['J_p95']:.9g}",
+                f"{final_Jstat['J_p99']:.9g}",
+                f"{final_Jstat['J_max']:.9g}",
+                f"{final_Jstat['J_max_abs_dev_from_1']:.9g}",
+                final_Jstat["J_nonpositive_count"],
+                final_Jstat["J_below_0p95_count"],
+                final_Jstat["J_above_1p05_count"],
+            ]
+        )
 
     normal_compression = -final["stress"][:, 2]
     plot_stress_field(
@@ -590,6 +798,8 @@ def main():
             "max_principal_Lagrange_strain="
             f"{np.max(final_principal_strain):.9g}\n"
         )
+        for k, v in final_Jstat.items():
+            f.write(f"{k}={v}\n")
 
     print(f"states={len(states)}")
     print(
@@ -609,6 +819,8 @@ def main():
         f"{final_contact['max_normal_pressure_proxy_MPa']:.9g}"
     )
     print(f"max_von_Mises_MPa={np.max(final_vm):.9g}")
+    print(f"J_min_Gauss={final_Jstat['J_min']:.9g}")
+    print(f"J_max_Gauss={final_Jstat['J_max']:.9g}")
 
 
 if __name__ == "__main__":
