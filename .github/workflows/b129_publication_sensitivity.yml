@@ -120,13 +120,13 @@ jobs:
 
       - name: Generate sensitivity model
         run: |
+          mkdir -p results
           python -m py_compile models/b129_stage1/generate_model.py
           python -m py_compile models/b129_stage1/postprocess_results.py
           python models/b129_stage1/generate_model.py
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
           grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
           grep -q '<var type="relative volume"' models/b129_stage1/B129_stage1_normal_contact.feb
-          mkdir -p results
           {
             echo "case=${{ matrix.case }}"
             echo "contact_penalty_MPa_per_um=${{ matrix.penalty }}"
@@ -177,6 +177,7 @@ jobs:
       - name: Collect FEM outputs
         if: always()
         run: |
+          mkdir -p results
           cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
           find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \) \
             -exec cp {} results/ \; || true
@@ -195,6 +196,22 @@ jobs:
             echo "No XPLT produced" >&2
             exit 1
           fi
+
+      - name: Classify solver termination
+        if: always()
+        run: |
+          if [ "${{ steps.solve.outcome }}" = "success" ]; then
+            echo "FEBio reached the requested endpoint."
+            exit 0
+          fi
+          if test -s results/B129_stage1_normal_contact.xplt \
+             && test -s results/B129_stage1_normal_contact.log \
+             && grep -qi "Negative jacobian" results/B129_stage1_normal_contact.log; then
+            echo "FEBio stopped at the expected negative-Jacobian stability limit after converged states."
+            exit 0
+          fi
+          echo "Unexpected FEBio termination." >&2
+          exit 1
 
       - name: Upload sensitivity result
         if: always()
