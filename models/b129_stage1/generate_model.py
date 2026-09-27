@@ -27,6 +27,7 @@ The generated XML is patched to use FEBio's built-in skyline linear solver,
 so the CI build does not require Intel MKL.
 """
 
+import argparse
 from pathlib import Path
 import numpy as np
 import pyfebio as feb
@@ -48,16 +49,32 @@ BULK_MODULUS_MPA = 850.0  # placeholder, approx. nu=0.499
 MAX_INDENTATION_UM = 50.0  # search ramp for mesh-sensitivity stability limit
 DISPLACEMENT_INCREMENT_UM = 0.1
 CONTACT_PENALTY_MPA_PER_UM = 0.30  # lower contact stiffness to limit local element inversion
+CONTACT_TOLERANCE = 0.01
+# Run-86 used 25, which forced acceptance of the first loaded step. A local
+# one-parameter sensitivity run showed natural convergence at augmentation 36
+# and negligible 0.5-5 MPa response changes when this limit is raised to 50.
+CONTACT_MAXAUG = 50
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
 
-NEAR_CONTACT_LAYER_UM = 1.50
 TRANSITION_NODE_UM = 9.00
-RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 1.5, 3.0, 4.5, 6.0, TRANSITION_NODE_UM, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
-    dtype=float,
-)
+MESH_CASES = {
+    # The production reference is intentionally byte-for-byte identical to the
+    # validated run-86 vertical topology.
+    "reference": (1.50, [
+        0.0, 1.5, 3.0, 4.5, 6.0, TRANSITION_NODE_UM, 12.0, 16.0,
+        24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM]),
+    # Only the rubber vertical discretisation changes. The rigid measured
+    # profile, material, contact, loading and all boundary conditions stay fixed.
+    "coarse": (3.00, [
+        0.0, 3.0, 6.0, TRANSITION_NODE_UM, 12.0, 16.0,
+        24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM]),
+    "fine": (0.75, [
+        0.0, 0.75, 1.5, 2.25, 3.0, 3.75, 4.5, 5.25, 6.0, 7.5,
+        TRANSITION_NODE_UM, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0,
+        RUBBER_HEIGHT_UM]),
+}
 
 
 class MeshBuilder:
@@ -89,7 +106,16 @@ def load_profile():
     return x, z
 
 
-def main():
+def main(mesh_case="reference", contact_tolerance=CONTACT_TOLERANCE,
+         maxaug=CONTACT_MAXAUG):
+    if contact_tolerance <= 0:
+        raise ValueError("contact_tolerance must be positive")
+    if maxaug < 1:
+        raise ValueError("maxaug must be at least 1")
+    near_contact_layer_um, levels = MESH_CASES[mesh_case]
+    rubber_z_levels_um = np.asarray(levels, dtype=float)
+    if not np.all(np.diff(rubber_z_levels_um) > 0):
+        raise ValueError(f"Non-increasing rubber z levels for {mesh_case}")
     x, rough = load_profile()
     nx = len(x)
     yvals = [0.0, OUT_OF_PLANE_UM]
@@ -118,12 +144,12 @@ def main():
 
     # Rubber block.
     z0 = float(np.max(rough) + INITIAL_GAP_UM)
-    nz = len(RUBBER_Z_LEVELS_UM)
+    nz = len(rubber_z_levels_um)
     rub_nodes = np.zeros((nx, 2, nz), dtype=int)
 
     for i in range(nx):
         for j, y in enumerate(yvals):
-            for k, zr in enumerate(RUBBER_Z_LEVELS_UM):
+            for k, zr in enumerate(rubber_z_levels_um):
                 rub_nodes[i, j, k] = mb.add_node(x[i], y, z0 + zr)
 
     rub_elements = []
@@ -307,7 +333,8 @@ def main():
             two_pass=0,
             symmetric_stiffness=1,
             fric_coeff=0,
-            maxaug=25,
+            tolerance=contact_tolerance,
+            maxaug=maxaug,
             seg_up=5,
             search_radius=5.0,
         )
@@ -361,14 +388,22 @@ def main():
 
     print(f"Generated: {OUTPUT_FEB}")
     print(f"Profile points: {nx}")
-    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um; transition node: {TRANSITION_NODE_UM} um")
+    print(f"Mesh case: {mesh_case}")
+    print(f"Near-contact layer spacing: {near_contact_layer_um} um; transition node: {TRANSITION_NODE_UM} um")
+    print("Rubber z levels [um]: " + ",".join(f"{v:g}" for v in rubber_z_levels_um))
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa")
+    print(f"Contact convergence: tolerance={contact_tolerance:g}, gaptol=0, maxaug={maxaug}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mesh-case", choices=sorted(MESH_CASES), default="reference")
+    parser.add_argument("--contact-tolerance", type=float, default=CONTACT_TOLERANCE)
+    parser.add_argument("--maxaug", type=int, default=CONTACT_MAXAUG)
+    args = parser.parse_args()
+    main(args.mesh_case, args.contact_tolerance, args.maxaug)

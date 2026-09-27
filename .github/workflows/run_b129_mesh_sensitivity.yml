@@ -1,0 +1,179 @@
+name: B129 Stage 1 vertical mesh sensitivity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b129-stage1-vertical-mesh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  solve:
+    strategy:
+      fail-fast: false
+      matrix:
+        mesh_case: [coarse, reference, fine]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout sealFE
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate ${{ matrix.mesh_case }} input
+        run: |
+          python -m py_compile models/b129_stage1/generate_model.py
+          python models/b129_stage1/generate_model.py --mesh-case "${{ matrix.mesh_case }}"
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
+
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+          grep -q 'int NegativeJacobian::m_maxout = 60;' .febio-src/FECore/FEException.cpp
+
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+
+      - name: Configure FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S .febio-src -B .febio-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF \
+            -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF \
+            -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS="-fopenmp" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fopenmp"
+
+      - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: cmake --build .febio-build --target febio4 --parallel 2
+
+      - name: Run nonlinear contact solve
+        id: solve
+        continue-on-error: true
+        run: |
+          mkdir -p results
+          cd models/b129_stage1
+          "${GITHUB_WORKSPACE}/.febio-build/bin/febio4" \
+            -i B129_stage1_normal_contact.feb \
+            > "${GITHUB_WORKSPACE}/results/febio_stdout.txt" 2>&1
+
+      - name: Collect and post-process
+        if: always()
+        run: |
+          mkdir -p results
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \
+            \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \) \
+            -exec cp {} results/ \; || true
+          echo "mesh_case=${{ matrix.mesh_case }}" > results/B129_mesh_case.txt
+          echo "solve_outcome=${{ steps.solve.outcome }}" >> results/B129_mesh_case.txt
+          if test -s results/B129_stage1_normal_contact.xplt; then
+            python models/b129_stage1/postprocess_results.py \
+              results/B129_stage1_normal_contact.xplt \
+              results/B129_stage1_normal_contact.feb \
+              --log results/B129_stage1_normal_contact.log \
+              --ramp-um 50 \
+              --output-dir results
+          fi
+
+      - name: Upload compact report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-mesh-report-${{ matrix.mesh_case }}
+          path: |
+            results/B129_*.png
+            results/B129_*.csv
+            results/B129_*.json
+            results/B129_*.md
+            results/B129_*.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload raw solve
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-mesh-raw-${{ matrix.mesh_case }}
+          path: |
+            results/B129_stage1_normal_contact.feb
+            results/B129_stage1_normal_contact.log
+            results/B129_stage1_normal_contact.xplt
+            results/febio_stdout.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Classify termination
+        if: always()
+        run: |
+          if [ "${{ steps.solve.outcome }}" != "failure" ]; then
+            exit 0
+          fi
+          if test -s results/B129_stage1_normal_contact.xplt \
+             && grep -qi "Negative jacobian" results/B129_stage1_normal_contact.log; then
+            echo "Expected natural element-stability limit after converged states."
+            exit 0
+          fi
+          echo "Unexpected solver termination."
+          exit 1
+
+  compare:
+    needs: solve
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sealFE
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install comparison dependencies
+        run: pip install numpy matplotlib
+
+      - name: Download compact reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: B129-mesh-report-*
+          path: mesh-reports
+
+      - name: Compare identical-pressure metrics
+        run: |
+          python models/b129_stage1/compare_mesh_sensitivity.py \
+            --case coarse=mesh-reports/B129-mesh-report-coarse \
+            --case reference=mesh-reports/B129-mesh-report-reference \
+            --case fine=mesh-reports/B129-mesh-report-fine \
+            --reference reference \
+            --output-dir comparison
+
+      - name: Upload mesh comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-vertical-mesh-comparison
+          path: comparison/
+          if-no-files-found: error
+          retention-days: 14
