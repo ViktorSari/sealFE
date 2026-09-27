@@ -6,9 +6,15 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/b129_publication_sensitivity.yml"
+      - "models/b129_stage1/**"
+      - "requirements.txt"
 
 permissions:
   contents: read
+
+concurrency:
+  group: b129-publication-sensitivity-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sensitivity:
@@ -24,37 +30,78 @@ jobs:
             penalty: "0.30"
             bulk: "850.0"
             approx_nu: "0.49855"
+            gap: "-0.001"
+            height: "100.0"
           - case: penalty_low
             penalty: "0.15"
             bulk: "850.0"
             approx_nu: "0.49855"
+            gap: "-0.001"
+            height: "100.0"
           - case: penalty_high
             penalty: "0.60"
             bulk: "850.0"
             approx_nu: "0.49855"
+            gap: "-0.001"
+            height: "100.0"
           - case: bulk_nu_0p495
             penalty: "0.30"
             bulk: "245.9773333333"
             approx_nu: "0.495"
+            gap: "-0.001"
+            height: "100.0"
           - case: bulk_nu_0p498
             penalty: "0.30"
             bulk: "616.1773333333"
             approx_nu: "0.498"
+            gap: "-0.001"
+            height: "100.0"
           - case: bulk_nu_0p499
             penalty: "0.30"
             bulk: "1233.1773333333"
             approx_nu: "0.499"
+            gap: "-0.001"
+            height: "100.0"
           - case: bulk_nu_0p4995
             penalty: "0.30"
             bulk: "2467.1773333333"
             approx_nu: "0.4995"
+            gap: "-0.001"
+            height: "100.0"
+
+          - case: initial_gap_zero
+            penalty: "0.30"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+            gap: "0.0"
+            height: "100.0"
+          - case: initial_gap_5nm
+            penalty: "0.30"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+            gap: "-0.005"
+            height: "100.0"
+          - case: rubber_height_150
+            penalty: "0.30"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+            gap: "-0.001"
+            height: "150.0"
+          - case: rubber_height_200
+            penalty: "0.30"
+            bulk: "850.0"
+            approx_nu: "0.49855"
+            gap: "-0.001"
+            height: "200.0"
+
 
     env:
       B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
       B129_BULK_MODULUS_MPA: ${{ matrix.bulk }}
       B129_MAX_INDENTATION_UM: "6.0"
       B129_DISPLACEMENT_INCREMENT_UM: "0.1"
-      B129_INITIAL_GAP_UM: "-0.001"
+      B129_INITIAL_GAP_UM: ${{ matrix.gap }}
+      B129_RUBBER_HEIGHT_UM: ${{ matrix.height }}
 
     steps:
       - name: Checkout sealFE
@@ -87,7 +134,8 @@ jobs:
             echo "approx_nu=${{ matrix.approx_nu }}"
             echo "max_indentation_um=6.0"
             echo "max_external_increment_um=0.1"
-            echo "initial_gap_um=-0.001"
+            echo "initial_gap_um=${{ matrix.gap }}"
+            echo "rubber_height_um=${{ matrix.height }}"
           } > results/sensitivity_case.txt
 
       - name: Clone FEBio 4.13
