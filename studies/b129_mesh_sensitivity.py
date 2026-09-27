@@ -16,9 +16,11 @@ import numpy as np
 
 from models.b129_stage1 import generate_model as gm
 
+_ORIGINAL_LOAD_PROFILE = gm.load_profile
+
 
 def refined_profile(subdiv: int):
-    x, z = gm.load_profile()
+    x, z = _ORIGINAL_LOAD_PROFILE()
     if subdiv == 1:
         return x, z
     if subdiv < 1:
