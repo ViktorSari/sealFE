@@ -103,6 +103,7 @@ jobs:
         if: always()
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
           from models.b129_stage1.generate_model import MAX_INDENTATION_UM
           ramp_um = float(MAX_INDENTATION_UM)
