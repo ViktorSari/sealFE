@@ -42,6 +42,7 @@ jobs:
           python models/b129_stage1/generate_model.py
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
           grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
+          grep -q '<var type="relative volume"' models/b129_stage1/B129_stage1_normal_contact.feb
 
       - name: Clone FEBio 4.13
         run: |
@@ -170,6 +171,7 @@ jobs:
             results/B129_rubber_surface_history_0p5um.png
             results/B129_rubber_surface_history_0p5um.csv
             results/B129_selected_states.csv
+            results/B129_J_diagnostics.csv
             results/B129_pressure_history.csv
           if-no-files-found: warn
           retention-days: 14
