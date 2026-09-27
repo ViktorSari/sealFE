@@ -21,11 +21,21 @@ jobs:
           path: source
           run-id: 36324031328
           github-token: ${{ github.token }}
+      - name: Download completed augmented K5000 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: B129-volaug-aug_K5000
+          path: source_K5000
+          run-id: 36324031328
+          github-token: ${{ github.token }}
       - name: Keep numerical diagnostics only
         run: |
           mkdir -p compact
           cp source/B129_selected_states.csv source/B129_J_diagnostics.csv source/B129_pressure_history.csv source/B129_final_summary.txt source/augmentation_case.txt compact/
           tail -n 100 source/B129_stage1_normal_contact.log > compact/solver_log_tail.txt
+          mkdir -p compact/K5000
+          cp source_K5000/B129_selected_states.csv source_K5000/B129_J_diagnostics.csv source_K5000/B129_pressure_history.csv source_K5000/B129_final_summary.txt source_K5000/augmentation_case.txt compact/K5000/
+          tail -n 100 source_K5000/B129_stage1_normal_contact.log > compact/K5000/solver_log_tail.txt
       - name: Upload compact result
         uses: actions/upload-artifact@v4
         with:
