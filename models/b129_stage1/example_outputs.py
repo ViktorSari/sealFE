@@ -73,33 +73,48 @@ def true_contact_length(xz, cp, al_x, al_z, threshold=1e-8):
     return float(sum(arc(b)-arc(a) for a, b in merged)), float(cumulative[-1])
 
 
-def save_contact_plot(path, states, xyz, bottom_conn, al_x, al_z, pressure, end):
-    positions = np.linspace(.2, 1., 5)*end
-    selected = [min(states, key=lambda s: abs(s["indentation_um"]-u)) for u in positions]
+def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pressure):
+    max_pressure = pressure[id(states[-1])]
+    # More resolution during the first stages of contact; include exact final.
+    targets = max_pressure*np.array([.01, .04, .12, .35, 1.])
+    selected = [min(states, key=lambda s: abs(pressure[id(s)]-p)) for p in targets]
     maximum = max(float(np.max(s["contact_pressure_raw"])) for s in selected)
-    fig, axes = plt.subplots(5, 1, figsize=(13, 10), sharex=True, sharey=True)
-    for ax, st in zip(axes, selected):
-        xz, cp = contact_segments(xyz, bottom_conn, st)
-        ax.plot(al_x, al_z, color="0.35", lw=.8, label="Measured Al")
-        active = cp > 1e-8
-        lines = LineCollection(xz[active], cmap="inferno", norm=plt.Normalize(0, maximum),
-                               linewidths=2.2)
-        lines.set_array(cp[active])
-        ax.add_collection(lines)
-        ax.plot(xz[:, 0, 0], xz[:, 0, 1], lw=.35, color="#3579a8", alpha=.7)
-        ax.set_aspect("equal", adjustable="box")
-        ax.set_ylabel("z [µm]")
-        ax.set_title("u = %.3f µm  |  p_nom = %.3f MPa" %
-                     (st["indentation_um"], pressure[id(st)]), fontsize=10)
-    axes[-1].set_xlabel("x [µm]")
-    axes[-1].set_xlim(al_x[0], al_x[-1])
+    fig, axes = plt.subplots(10, 1, figsize=(16, 15), sharey=True)
+    bounds = [(al_x[0], (al_x[0]+al_x[-1])/2),
+              ((al_x[0]+al_x[-1])/2, al_x[-1])]
     zmin = min(np.min(al_z), min(np.min(surface_points(xyz,bottom_conn,s["displacement"])[:,1]) for s in selected))
     zmax = max(np.max(al_z), max(np.max(surface_points(xyz,bottom_conn,s["displacement"])[:,1]) for s in selected))
-    for ax in axes:
-        ax.set_ylim(zmin-.3, zmax+.3)
-    fig.colorbar(lines, ax=axes, label="FEBio facet-average normal contact pressure [MPa]",
-                 shrink=.72, pad=.01)
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    with csv_path.open("w", newline="") as f:
+        w=csv.writer(f)
+        w.writerow(["target_nominal_pressure_MPa","stored_nominal_pressure_MPa",
+                    "stored_indentation_um","max_facet_contact_pressure_MPa"])
+        for target,st in zip(targets,selected):
+            w.writerow([target,pressure[id(st)],st["indentation_um"],
+                        np.max(st["contact_pressure_raw"])])
+    for row, (target, st) in enumerate(zip(targets, selected)):
+        xz, cp = contact_segments(xyz, bottom_conn, st)
+        for j,(left,right) in enumerate(bounds):
+            ax=axes[2*row+j]
+            ax.plot(al_x, al_z, color="0.35", lw=.8, label="Measured Al")
+            active = cp > 1e-8
+            lines = LineCollection(xz[active], cmap="inferno", norm=plt.Normalize(0, maximum),
+                                   linewidths=2.5)
+            lines.set_array(cp[active])
+            ax.add_collection(lines)
+            ax.plot(xz[:, 0, 0], xz[:, 0, 1], lw=.45, color="#3579a8", alpha=.7)
+            ax.set_aspect("equal", adjustable="box")
+            ax.set_ylabel("z [µm]")
+            ax.set_xlim(left,right)
+            ax.set_ylim(zmin-.3,zmax+.3)
+            ax.set_title("Target %.3f MPa | state %.3f MPa, u=%.3f µm | x=%.0f–%.0f µm" %
+                         (target,pressure[id(st)],st["indentation_um"],left,right),fontsize=9)
+            if row == len(selected)-1:
+                ax.set_xlabel("x [µm]")
+    axes[-1].set_xlabel("x [µm]")
+    fig.subplots_adjust(left=.08,right=.85,top=.97,bottom=.05,hspace=.55)
+    cax=fig.add_axes([.89,.20,.022,.60])
+    fig.colorbar(lines, cax=cax, label="FEBio facet-average normal contact pressure [MPa]")
+    fig.savefig(path, dpi=170)
     plt.close(fig)
 
 
@@ -121,7 +136,7 @@ def save_contact_curve(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pre
                     "measured_Al_profile_arc_um","contact_length_ratio",
                     "max_facet_contact_pressure_MPa","pressure_integral_MPa"])
         w.writerows(rows)
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 6))
     ax.plot([r[1] for r in rows], [r[4] for r in rows], color="#17698c", lw=1.7)
     ax.set(xlabel="Nominal pressure [MPa]", ylabel="Contact arc / measured Al profile arc [-]",
            xlim=(0,None), ylim=(0,1.02), title="B129 contact evolution")
@@ -142,18 +157,23 @@ def save_surface_history(path, csv_path, states, xyz, bottom_conn, al_x, al_z):
             curve=surface_points(xyz,bottom_conn,d)
             curves.append((actual,curve,interp))
             w.writerows((actual,x,z,int(interp)) for x,z in curve)
-    fig,ax=plt.subplots(figsize=(13,3.7))
-    ax.set_position([.08,.62,.84,.24])
-    ax.plot(al_x,al_z,color="black",lw=1.2,label="Measured rigid Al")
+    fig,axes=plt.subplots(4,1,figsize=(15,11),sharey=True)
     cm=plt.get_cmap("viridis")
-    for i,(u,curve,interp) in enumerate(curves):
-        ax.plot(curve[:,0],curve[:,1],color=cm(u/end),lw=.95)
-    ax.set(xlabel="x [µm]",ylabel="z [µm]",title="Rubber contact surface at 0.5 µm increments")
-    ax.set_aspect("equal",adjustable="box");ax.legend(fontsize=8,loc="upper right")
-    bar=fig.add_axes([.20,.32,.60,.05])
+    bounds=np.linspace(al_x[0],al_x[-1],5)
+    for ax,left,right in zip(axes,bounds[:-1],bounds[1:]):
+        ax.plot(al_x,al_z,color="black",lw=1.2,label="Measured rigid Al")
+        for u,curve,interp in curves:
+            ax.plot(curve[:,0],curve[:,1],color=cm(u/end),lw=.95)
+        ax.set(xlim=(left,right),xlabel="x [µm]",ylabel="z [µm]",
+               title="Measured profile: x=%.0f–%.0f µm"%(left,right))
+        ax.set_aspect("equal",adjustable="box")
+    axes[0].legend(fontsize=8,loc="upper right")
+    fig.suptitle("Rubber contact surface at 0.5 µm indentation increments",fontsize=13)
+    fig.subplots_adjust(top=.94,bottom=.17,hspace=.7)
+    bar=fig.add_axes([.20,.095,.60,.016])
     fig.colorbar(plt.cm.ScalarMappable(norm=plt.Normalize(0,end),cmap=cm),
                  cax=bar,orientation="horizontal",label="Indentation [µm]; final exact state included")
-    fig.text(.5,.05,"Intermediate curves are interpolated between converged states for display only.",
+    fig.text(.5,.018,"Intermediate curves are interpolated between converged states for display only.",
              ha="center",fontsize=8)
     fig.savefig(path,dpi=200);plt.close(fig)
 
@@ -175,11 +195,15 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure)
         ax.set_aspect("equal",adjustable="box")
         ax.set(xlabel="x [µm]",ylabel="z [µm]",title=caption)
     chosen=min(states,key=lambda s:abs(pressure[id(s)]-5.0))
-    fig,axes=plt.subplots(3,1,figsize=(13,13))
+    fig,axes=plt.subplots(5,1,figsize=(15,18))
     panel(axes[0],xyz,False,"Undeformed full mesh")
-    panel(axes[1],xyz,True,"Undeformed contact region")
-    panel(axes[2],xyz+chosen["displacement"],True,
-          "Deformed contact region: %.3f µm / %.3f MPa"%(chosen["indentation_um"],pressure[id(chosen)]))
+    for i,(left,right) in enumerate([(al_x[0],(al_x[0]+al_x[-1])/2),
+                                     ((al_x[0]+al_x[-1])/2,al_x[-1])]):
+        panel(axes[1+i],xyz,True,"Undeformed contact mesh, x=%.0f–%.0f µm"%(left,right))
+        axes[1+i].set_xlim(left,right)
+        panel(axes[3+i],xyz+chosen["displacement"],True,
+              "Deformed mesh at %.3f MPa, x=%.0f–%.0f µm"%(pressure[id(chosen)],left,right))
+        axes[3+i].set_xlim(left,right)
     fig.tight_layout();fig.savefig(path,dpi=200);plt.close(fig)
     pts=xyz[rubber_conn]
     dx=np.diff(al_x)
@@ -199,7 +223,7 @@ def save_fields(out,xyz,rubber_conn,bottom_conn,states,pressure,al_x,al_z):
         ("von_Mises",lambda s:pp.von_mises(s["stress"]),"viridis"),
         ("minus_sigma_zz",lambda s:-s["stress"][:,2],"magma"),
         ("max_principal_Lagrange_strain",lambda s:pp.max_principal_sym6(s["strain"]),"cividis")]:
-        fig,axes=plt.subplots(5,1,figsize=(13,17),sharex=True,sharey=True)
+        fig,axes=plt.subplots(5,1,figsize=(15,22),sharex=True,sharey=True)
         values=[fn(s) for s in selected]
         lo,hi=min(float(np.min(v)) for v in values),max(float(np.max(v)) for v in values)
         for ax,st,v in zip(axes,selected,values):
@@ -248,12 +272,15 @@ def save_gif(path,states,xyz,bottom_conn,al_x,al_z):
     for u in targets:
         d,actual,interp=at_indent(states,u)
         curve=surface_points(xyz,bottom_conn,d)
-        fig,ax=plt.subplots(figsize=(12,3))
-        ax.plot(al_x,al_z,color="#444",lw=1.1,label="Measured Al")
-        ax.plot(curve[:,0],curve[:,1],color="#167fa2",lw=1.5,label="Rubber contact surface")
-        ax.set(xlim=(al_x[0],al_x[-1]),ylim=(ylo,yhi),xlabel="x [µm]",ylabel="z [µm]",
-               title="B129 indentation: %.3f µm%s"%(actual," (visual interpolation)" if interp else ""))
-        ax.set_aspect("equal",adjustable="box");ax.legend(loc="upper right",fontsize=7)
+        fig,axes=plt.subplots(2,1,figsize=(12,5.5))
+        for ax,(left,right) in zip(axes,[(al_x[0],(al_x[0]+al_x[-1])/2),
+                                         ((al_x[0]+al_x[-1])/2,al_x[-1])]):
+            ax.plot(al_x,al_z,color="#444",lw=1.1,label="Measured Al")
+            ax.plot(curve[:,0],curve[:,1],color="#167fa2",lw=1.5,label="Rubber contact surface")
+            ax.set(xlim=(left,right),ylim=(ylo,yhi),xlabel="x [µm]",ylabel="z [µm]")
+            ax.set_aspect("equal",adjustable="box")
+        axes[0].legend(loc="upper right",fontsize=7)
+        fig.suptitle("B129 indentation: %.3f µm%s"%(actual," (visual interpolation)" if interp else ""))
         fig.canvas.draw()
         arr=np.asarray(fig.canvas.buffer_rgba())[...,:3].copy()
         frames.append(Image.fromarray(arr))
@@ -276,7 +303,8 @@ def main():
     states=pp.parse_states(args.xplt,args.ramp_um,bottom_conn)
     width=float(al_x[-1]-al_x[0])
     pressure={id(st):nominal_pressure(st,xyz,rubber_conn,width) for st in states}
-    save_contact_plot(out/"B129_contact_line_five_levels.png",states,xyz,bottom_conn,al_x,al_z,pressure,states[-1]["indentation_um"])
+    save_contact_plot(out/"B129_contact_line_five_levels.png",out/"B129_contact_line_levels.csv",
+                      states,xyz,bottom_conn,al_x,al_z,pressure)
     save_contact_curve(out/"B129_contact_length_ratio.png",out/"B129_contact_length_ratio.csv",states,xyz,bottom_conn,al_x,al_z,pressure)
     save_surface_history(out/"B129_surface_evolution.png",out/"B129_surface_evolution.csv",states,xyz,bottom_conn,al_x,al_z)
     stats=save_mesh(out/"B129_mesh_panels.png",xyz,rubber_conn,bottom_conn,al_x,al_z,states,pressure)
