@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/b129_volume_augmentation_validation.yml"
+      - "models/b129_stage1/generate_model.py"
+      - "models/b129_stage1/postprocess_results.py"
 
 permissions:
   contents: read
