@@ -85,6 +85,20 @@ jobs:
           done < artifact_list.tsv
           echo "case_failures=$failed" >> "$GITHUB_STEP_SUMMARY"
           exit "$failed"
+      - name: Print corrected numerical metrics
+        if: always()
+        shell: bash
+        run: |
+          for dir in corrected/B129-*; do
+            test -d "$dir" || continue
+            echo "BEGIN_CASE $(basename "$dir")"
+            for file in reprocess_status.txt B129_final_summary.txt B129_true_contact_metrics.csv B129_selected_states.csv; do
+              echo "BEGIN_FILE $file"
+              if test -f "$dir/$file"; then cat "$dir/$file"; else echo "MISSING"; fi
+              echo "END_FILE $file"
+            done
+            echo "END_CASE"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
