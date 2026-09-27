@@ -108,8 +108,6 @@ def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pres
             ax.set_ylim(zmin-.3,zmax+.3)
             ax.set_title("Target %.3f MPa | state %.3f MPa, u=%.3f µm | x=%.0f–%.0f µm" %
                          (target,pressure[id(st)],st["indentation_um"],left,right),fontsize=9)
-            if row == len(selected)-1:
-                ax.set_xlabel("x [µm]")
     axes[-1].set_xlabel("x [µm]")
     fig.subplots_adjust(left=.08,right=.85,top=.97,bottom=.05,hspace=.55)
     cax=fig.add_axes([.89,.20,.022,.60])
