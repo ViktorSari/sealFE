@@ -47,6 +47,10 @@ def env_str(name, default):
     return str(os.environ.get(name, default)).strip()
 
 
+def env_int(name, default):
+    return int(os.environ.get(name, default))
+
+
 OUT_OF_PLANE_UM = 1.0
 RUBBER_HEIGHT_UM = env_float("B129_RUBBER_HEIGHT_UM", 100.0)
 AL_BASE_MARGIN_UM = 5.0
@@ -62,6 +66,8 @@ CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
 SIDE_BC_MODE = env_str("B129_SIDE_BC_MODE", "both_sides")
+VOLUME_AUGMENT = env_int("B129_VOLUME_AUGMENT", 0)
+VOLUME_AUGTOL = env_float("B129_VOLUME_AUGTOL", 0.01)
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
@@ -397,6 +403,20 @@ def main():
     # CI intentionally builds FEBio without MKL, so select built-in skyline.
     xml = OUTPUT_FEB.read_text(encoding="utf-8")
     xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
+
+    # Optional augmented-Lagrangian enforcement of the volumetric constraint
+    # for the three-field uncoupled rubber domain. This is distinct from
+    # augmented-Lagrangian contact.
+    if VOLUME_AUGMENT:
+        target = '<SolidDomain name="rubber" mat="rubber" type="three-field-solid">'
+        replacement = (
+            target
+            + f'<laugon>1</laugon><atol>{VOLUME_AUGTOL:.9g}</atol>'
+        )
+        if target not in xml:
+            raise RuntimeError("Could not locate rubber three-field SolidDomain")
+        xml = xml.replace(target, replacement, 1)
+
     OUTPUT_FEB.write_text(xml, encoding="utf-8")
 
     print(f"Generated: {OUTPUT_FEB}")
@@ -409,6 +429,7 @@ def main():
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
     print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}")
+    print(f"Volumetric augmentation: {bool(VOLUME_AUGMENT)}; atol={VOLUME_AUGTOL}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
