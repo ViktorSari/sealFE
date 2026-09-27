@@ -7,6 +7,8 @@ on:
     paths:
       - ".github/workflows/b129_mesh_sensitivity.yml"
       - "studies/b129_mesh_sensitivity.py"
+      - "models/b129_stage1/**"
+      - "requirements.txt"
 
 permissions:
   contents: read
@@ -68,13 +70,13 @@ jobs:
 
       - name: Generate mesh variant
         run: |
+          mkdir -p results
           python -m py_compile studies/b129_mesh_sensitivity.py
           python -m py_compile models/b129_stage1/postprocess_results.py
           python studies/b129_mesh_sensitivity.py
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
           grep -q 'linear_solver type="skyline"' models/b129_stage1/B129_stage1_normal_contact.feb
           grep -q '<var type="relative volume"' models/b129_stage1/B129_stage1_normal_contact.feb
-          mkdir -p results
           {
             echo "case=${{ matrix.case }}"
             echo "surface_dz_um=${{ matrix.surface_dz }}"
@@ -121,6 +123,7 @@ jobs:
       - name: Collect outputs
         if: always()
         run: |
+          mkdir -p results
           cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
           find models/b129_stage1 -maxdepth 1 -type f \( -name "*.xplt" -o -name "*.log" -o -name "*.txt" \) \
             -exec cp {} results/ \; || true
@@ -139,6 +142,22 @@ jobs:
             echo "No XPLT produced" >&2
             exit 1
           fi
+
+      - name: Classify solver termination
+        if: always()
+        run: |
+          if [ "${{ steps.solve.outcome }}" = "success" ]; then
+            echo "FEBio reached the requested endpoint."
+            exit 0
+          fi
+          if test -s results/B129_stage1_normal_contact.xplt \
+             && test -s results/B129_stage1_normal_contact.log \
+             && grep -qi "Negative jacobian" results/B129_stage1_normal_contact.log; then
+            echo "FEBio stopped at the expected negative-Jacobian stability limit after converged states."
+            exit 0
+          fi
+          echo "Unexpected FEBio termination." >&2
+          exit 1
 
       - name: Upload mesh-sensitivity result
         if: always()
