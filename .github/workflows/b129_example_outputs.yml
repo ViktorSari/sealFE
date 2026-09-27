@@ -32,6 +32,7 @@ jobs:
         run: |
           python models/b129_stage1/example_outputs.py input/B129_stage1_normal_contact.xplt input/B129_stage1_normal_contact.feb --ramp-um 4.2 --output-dir example
           test -s example/B129_contact_line_five_levels.png
+          test -s example/B129_contact_line_levels.csv
           test -s example/B129_indentation_0p1um.gif
           test -s example/B129_contact_length_ratio.csv
           test -s example/B129_surface_evolution.png
