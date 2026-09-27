@@ -142,17 +142,20 @@ def save_surface_history(path, csv_path, states, xyz, bottom_conn, al_x, al_z):
             curve=surface_points(xyz,bottom_conn,d)
             curves.append((actual,curve,interp))
             w.writerows((actual,x,z,int(interp)) for x,z in curve)
-    fig,ax=plt.subplots(figsize=(13,5))
+    fig,ax=plt.subplots(figsize=(13,3.7))
+    ax.set_position([.08,.62,.84,.24])
     ax.plot(al_x,al_z,color="black",lw=1.2,label="Measured rigid Al")
     cm=plt.get_cmap("viridis")
     for i,(u,curve,interp) in enumerate(curves):
-        ax.plot(curve[:,0],curve[:,1],color=cm(i/max(1,len(curves)-1)),lw=.95,
-                label="%.3f µm%s"%(u,"*" if interp else ""))
+        ax.plot(curve[:,0],curve[:,1],color=cm(u/end),lw=.95)
     ax.set(xlabel="x [µm]",ylabel="z [µm]",title="Rubber contact surface at 0.5 µm increments")
-    ax.set_aspect("equal",adjustable="box");ax.legend(ncol=4,fontsize=8,loc="upper center")
-    fig.text(.5,.015,"* Surface interpolated between converged states for display only.",
+    ax.set_aspect("equal",adjustable="box");ax.legend(fontsize=8,loc="upper right")
+    bar=fig.add_axes([.20,.32,.60,.05])
+    fig.colorbar(plt.cm.ScalarMappable(norm=plt.Normalize(0,end),cmap=cm),
+                 cax=bar,orientation="horizontal",label="Indentation [µm]; final exact state included")
+    fig.text(.5,.05,"Intermediate curves are interpolated between converged states for display only.",
              ha="center",fontsize=8)
-    fig.savefig(path,dpi=200,bbox_inches="tight");plt.close(fig)
+    fig.savefig(path,dpi=200);plt.close(fig)
 
 
 def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure):
