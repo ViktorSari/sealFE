@@ -44,7 +44,7 @@ def env_float(name, default):
 
 
 OUT_OF_PLANE_UM = 1.0
-RUBBER_HEIGHT_UM = 100.0
+RUBBER_HEIGHT_UM = env_float("B129_RUBBER_HEIGHT_UM", 100.0)
 AL_BASE_MARGIN_UM = 5.0
 INITIAL_GAP_UM = env_float("B129_INITIAL_GAP_UM", -0.001)  # default 1 nm seating overlap
 
@@ -60,8 +60,17 @@ STEP_SIZE = 1.0 / TIME_STEPS
 
 NEAR_CONTACT_LAYER_UM = 1.50
 TRANSITION_NODE_UM = 9.00
+_BASE_RUBBER_Z_LEVELS_UM = [
+    0.0, 1.5, 3.0, 4.5, 6.0, TRANSITION_NODE_UM,
+    12.0, 16.0, 24.0, 32.0, 48.0, 64.0, 100.0, 150.0, 200.0,
+]
 RUBBER_Z_LEVELS_UM = np.array(
-    [0.0, 1.5, 3.0, 4.5, 6.0, TRANSITION_NODE_UM, 12.0, 16.0, 24.0, 32.0, 48.0, 64.0, RUBBER_HEIGHT_UM],
+    sorted(
+        set(
+            [z for z in _BASE_RUBBER_Z_LEVELS_UM if z < RUBBER_HEIGHT_UM]
+            + [RUBBER_HEIGHT_UM]
+        )
+    ),
     dtype=float,
 )
 
@@ -368,7 +377,7 @@ def main():
 
     print(f"Generated: {OUTPUT_FEB}")
     print(f"Profile points: {nx}")
-    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um; transition node: {TRANSITION_NODE_UM} um")
+    print(f"Near-contact layer spacing: {NEAR_CONTACT_LAYER_UM} um; transition node: {TRANSITION_NODE_UM} um; rubber height: {RUBBER_HEIGHT_UM} um")
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
