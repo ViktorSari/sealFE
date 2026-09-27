@@ -3,7 +3,7 @@ name: B129 volumetric augmentation validation
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/b129-volume-augmentation-fix]
     paths:
       - ".github/workflows/b129_volume_augmentation_validation.yml"
       - "models/b129_stage1/generate_model.py"
