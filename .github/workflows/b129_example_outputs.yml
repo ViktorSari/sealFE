@@ -5,6 +5,8 @@ on:
     branches: [codex/b129-volume-augmentation-fix]
     paths:
       - ".github/workflows/b129_example_outputs.yml"
+      - "models/b129_stage1/example_outputs.py"
+      - "models/b129_stage1/active_contact_reader.py"
 
 permissions:
   actions: read
@@ -30,15 +32,21 @@ jobs:
           github-token: ${{ github.token }}
       - name: Generate and check example outputs
         run: |
-          python models/b129_stage1/example_outputs.py input/B129_stage1_normal_contact.xplt input/B129_stage1_normal_contact.feb --ramp-um 4.2 --output-dir example
-          test -s example/B129_contact_line_five_levels.png
-          test -s example/B129_contact_line_levels.csv
-          test -s example/B129_indentation_0p1um.gif
-          test -s example/B129_contact_length_ratio.csv
-          test -s example/B129_mesh_panels.png
-          test -s example/B129_surface_evolution.png
-          test -s example/B129_surface_evolution.csv
-          printf 'Source run: https://github.com/ViktorSari/sealFE/actions/runs/36324031328\nSource case: augmented K=5000 MPa\nOutput status: example draft\n' > example/README.txt
+          DATE=$(date -u +%y-%m-%d)
+          python models/b129_stage1/example_outputs.py input/B129_stage1_normal_contact.xplt input/B129_stage1_normal_contact.feb --ramp-um 4.2 --output-dir example --txt-name CA129_02.TXT --date-stamp "$DATE"
+          test -s "example/01_CA129_02_${DATE}.png"
+          test -s "example/01_CA129_02_${DATE}.csv"
+          test -s "example/02_CA129_02_${DATE}.png"
+          test -s "example/02_CA129_02_${DATE}.csv"
+          test -s "example/03_CA129_02_${DATE}.gif"
+          test -s "example/04_CA129_02_${DATE}.png"
+          test -s "example/05_CA129_02_${DATE}.png"
+          test -s "example/06_CA129_02_${DATE}.png"
+          test -s "example/07_CA129_02_${DATE}.png"
+          test -s "example/07_CA129_02_${DATE}.csv"
+          test -s "example/08_CA129_02_${DATE}.png"
+          test -s "example/09_CA129_02_${DATE}.csv"
+          printf '\nSource run: https://github.com/ViktorSari/sealFE/actions/runs/36324031328\nSource case: augmented K=5000 MPa\nOutput status: formatting candidate\n' >> example/README.txt
       - uses: actions/upload-artifact@v4
         with:
           name: B129-K5000-example-outputs
