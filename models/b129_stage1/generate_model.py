@@ -412,8 +412,8 @@ def main():
     # by an exact literal string.
     if VOLUME_AUGMENT:
         pat = re.compile(
-            r'<SolidDomain\\b(?=[^>]*\\bname="rubber")'
-            r'(?=[^>]*\\btype="three-field-solid")[^>]*/>'
+            r'<SolidDomain\b(?=[^>]*\bname="rubber")'
+            r'(?=[^>]*\btype="three-field-solid")[^>]*/>'
         )
         m = pat.search(xml)
         if m is None:
