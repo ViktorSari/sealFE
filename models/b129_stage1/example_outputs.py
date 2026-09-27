@@ -86,10 +86,10 @@ def true_contact_length(xz, cp, al_x, al_z, threshold=1e-8):
     return active, float(cumulative[-1])
 
 
-def output_path(out: Path, number: int, txt_name: str, stamp: str, suffix: str) -> Path:
-    """Exact user naming pattern: number_txt-name_date.ext."""
+def output_path(out: Path, number: int, txt_name: str, result_name: str, stamp: str, suffix: str) -> Path:
+    """Exact user naming pattern: number_txt_result-name_date.ext."""
     stem = Path(txt_name).stem
-    return out / f"{number:02d}_{stem}_{stamp}.{suffix}"
+    return out / f"{number:02d}_{stem}_{result_name}_{stamp}.{suffix}"
 
 
 def _peak_prominence_proxy(x, z, i, radius_um=18.0):
@@ -215,6 +215,22 @@ def selected_pressure_states(states, pressure):
     return targets, selected
 
 
+def selected_contact_progression_states(states, pressure):
+    """Restore the earlier contact-growth sampling: 1, 4, 12, 35 and 100% of final p."""
+    maxp = max(float(pressure[id(s)]) for s in states)
+    targets = maxp * np.asarray([0.01, 0.04, 0.12, 0.35, 1.0], dtype=float)
+    selected = [min(states, key=lambda s: abs(float(pressure[id(s)]) - target)) for target in targets]
+    return targets, selected
+
+
+def selected_displacement_states(states):
+    """Five equally spaced displacement states, as in the earlier field plots."""
+    end = float(states[-1]["indentation_um"])
+    targets = np.linspace(0.2, 1.0, 5) * end
+    selected = [min(states, key=lambda s: abs(float(s["indentation_um"]) - target)) for target in targets]
+    return targets, selected
+
+
 def save_contact_curve(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pressure):
     rows = []
     for st in states:
@@ -231,36 +247,38 @@ def save_contact_curve(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pre
     with csv_path.open("w", newline="") as fcsv:
         w = csv.writer(fcsv)
         w.writerow(["indentation_um", "nominal_pressure_MPa", "active_Al_profile_arc_um",
-                    "measured_Al_profile_arc_um", "contact_length_ratio",
+                    "measured_Al_profile_arc_um", "Lreal_over_L0",
                     "max_facet_contact_pressure_MPa", "pressure_integral_MPa"])
         w.writerows(rows)
 
     pressures = np.asarray([r[1] for r in rows], dtype=float)
     ratios = np.asarray([r[4] for r in rows], dtype=float)
-    full_idx = None
-    for i in range(len(rows)):
-        if ratios[i] >= 0.995 and np.all(ratios[i:] >= 0.990):
-            full_idx = i
-            break
+
+    exact = np.where(ratios >= 1.0 - 1e-12)[0]
+    full_idx = int(exact[0]) if len(exact) else None
     if full_idx is None:
+        plot_end = len(rows)
         xmax = float(np.max(pressures))
     else:
+        # Stop the data curve at the first fully closed state, avoiding the
+        # visually meaningless horizontal Lreal/L0=1 tail.
+        plot_end = full_idx + 1
         pfull = float(pressures[full_idx])
         hard_max = 1.10 * pfull
-        quarter = 0.25
-        xmax = np.floor(hard_max / quarter + 1e-12) * quarter
+        step = 0.25 if pfull >= 1.0 else 0.10
+        xmax = np.floor(hard_max / step + 1e-12) * step
         if xmax <= pfull:
-            tenth = 0.10
-            xmax = np.floor(hard_max / tenth + 1e-12) * tenth
+            step = 0.05
+            xmax = np.floor(hard_max / step + 1e-12) * step
         xmax = max(xmax, pfull)
     xmax = max(xmax, 0.5)
 
     fig, ax = plt.subplots(figsize=(12, 2.65))
-    ax.plot(pressures, ratios, color="#222222", lw=1.15)
+    ax.plot(pressures[:plot_end], ratios[:plot_end], color="#222222", lw=1.15)
     apply_line_template(
         ax, (0.0, xmax), (0.0, 1.02),
         xlabel=r"Nominal pressure, $p_{nom}$ [MPa]",
-        ylabel="Contact length ratio [-]",
+        ylabel=r"$L_{real}/L_0$ [-]",
         x_major=0.5 if xmax <= 6.0 else 1.0,
         y_major=0.25,
     )
@@ -270,9 +288,11 @@ def save_contact_curve(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pre
 
 
 def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pressure, x0, x1):
-    targets, selected = selected_pressure_states(states, pressure)
+    # Return to the earlier contact-progression spacing so the approach to
+    # complete contact is visible, while retaining the requested 100 um window.
+    targets, selected = selected_contact_progression_states(states, pressure)
     ylo, yhi = profile_limits(al_x, al_z, x0, x1)
-    shades = plt.cm.Oranges(np.linspace(0.35, 0.95, 5))
+    max_cp = max(float(np.max(st["contact_pressure_raw"])) for st in selected)
 
     with csv_path.open("w", newline="") as fcsv:
         w = csv.writer(fcsv)
@@ -283,77 +303,124 @@ def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pres
             w.writerow([target, pressure[id(st)], st["indentation_um"],
                         np.max(st["contact_pressure_raw"]), x0, x1])
 
-    fig, axes = plt.subplots(5, 1, figsize=(12, 8.4), sharex=True, sharey=True)
-    for row, (target, st, color) in enumerate(zip(targets, selected, shades)):
+    fig, axes = plt.subplots(5, 1, figsize=(12, 8.8), sharex=True, sharey=True)
+    lc_for_bar = None
+    for row, (target, st) in enumerate(zip(targets, selected)):
         ax = axes[row]
         curve = surface_points(xyz, bottom_conn, st["displacement"])
         xz, cp = contact_segments(xyz, bottom_conn, st)
         m_al = (al_x >= x0) & (al_x <= x1)
-        ax.plot(local_x(al_x[m_al], x0), al_z[m_al], color="#777777", lw=0.85)
         m_curve = (curve[:, 0] >= x0) & (curve[:, 0] <= x1)
-        ax.plot(local_x(curve[m_curve, 0], x0), curve[m_curve, 1], color=color, lw=1.35)
+
+        ax.plot(local_x(al_x[m_al], x0), al_z[m_al], color="#777777", lw=0.90, zorder=2)
+        ax.plot(local_x(curve[m_curve, 0], x0), curve[m_curve, 1],
+                color="#f2a46f", lw=0.85, zorder=3)
 
         active = cp > 1e-8
         seg = xz[active].copy()
+        cp_active = cp[active].copy()
         keep = (np.max(seg[:, :, 0], axis=1) >= x0) & (np.min(seg[:, :, 0], axis=1) <= x1)
         seg = seg[keep]
+        cp_active = cp_active[keep]
         if len(seg):
             seg[:, :, 0] -= x0
-            ax.add_collection(LineCollection(seg, colors="#8c2d04", linewidths=2.0, zorder=5))
+            lc = LineCollection(seg, cmap="inferno", norm=plt.Normalize(0.0, max_cp),
+                                linewidths=2.2, zorder=5)
+            lc.set_array(cp_active)
+            ax.add_collection(lc)
+            lc_for_bar = lc
 
         apply_line_template(ax, (0.0, x1 - x0), (ylo, yhi), x_major=25.0, y_major=5.0)
         ax.text(0.985, 0.82,
-                r"$p_{nom}$ = %.2f MPa,  $u$ = %.3f µm" % (pressure[id(st)], st["indentation_um"]),
-                transform=ax.transAxes, ha="right", va="center", fontsize=9.5)
+                r"$p_{nom}$ = %.3f MPa,  $u$ = %.3f µm" % (pressure[id(st)], st["indentation_um"]),
+                transform=ax.transAxes, ha="right", va="center", fontsize=9.3)
         if row < 4:
             ax.tick_params(labelbottom=False)
-    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$\mu$m]", fontstyle="italic", fontsize=12, labelpad=8)
-    fig.supylabel(r"Profile height, $z$ [$\mu$m]", x=0.025, fontstyle="italic", fontsize=12)
-    fig.subplots_adjust(left=0.085, right=0.985, top=0.985, bottom=0.105, hspace=0.36)
+
+    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$mu$m]",
+                        fontstyle="italic", fontsize=12, labelpad=8)
+    fig.supylabel(r"Profile height, $z$ [$mu$m]", x=0.025,
+                  fontstyle="italic", fontsize=12)
+    fig.subplots_adjust(left=0.085, right=0.88, top=0.985, bottom=0.105, hspace=0.36)
+    if lc_for_bar is not None:
+        cax = fig.add_axes([0.905, 0.19, 0.018, 0.64])
+        cbar = fig.colorbar(lc_for_bar, cax=cax)
+        cbar.set_label("Facet-average normal contact pressure [MPa]", fontsize=9)
     fig.savefig(path, dpi=260)
     plt.close(fig)
 
 
 def save_surface_history(path, csv_path, states, xyz, bottom_conn, al_x, al_z, x0, x1):
     end = float(states[-1]["indentation_um"])
-    targets = list(np.arange(0.0, end + 1e-8, 0.5))
+    targets = list(np.arange(0.0, end + 1e-8, 0.25))
     if not np.isclose(targets[-1], end):
         targets.append(end)
+
+    raw_curves = []
+    for u in targets:
+        d, actual, interp = at_indent(states, u)
+        curve = surface_points(xyz, bottom_conn, d)
+        m = (curve[:, 0] >= x0) & (curve[:, 0] <= x1)
+        raw_curves.append((actual, curve[m], interp))
+
+    # Display-only offset for the final curve: align its median separation with
+    # the measured contour. Raw coordinates are retained in the CSV.
+    final_curve = raw_curves[-1][1]
+    final_al = np.interp(final_curve[:, 0], al_x, al_z)
+    final_offset = -float(np.median(final_curve[:, 1] - final_al))
+
     curves = []
     with csv_path.open("w", newline="") as fcsv:
         w = csv.writer(fcsv)
-        w.writerow(["target_indent_um", "x_local_um", "x_original_um", "rubber_z_um", "visual_interpolation"])
-        for u in targets:
-            d, actual, interp = at_indent(states, u)
-            curve = surface_points(xyz, bottom_conn, d)
-            m = (curve[:, 0] >= x0) & (curve[:, 0] <= x1)
-            c = curve[m]
-            curves.append((actual, c, interp))
-            w.writerows((actual, x - x0, x, z, int(interp)) for x, z in c)
+        w.writerow(["target_indent_um", "x_local_um", "x_original_um",
+                    "rubber_z_raw_um", "rubber_z_display_um",
+                    "display_offset_um", "visual_interpolation"])
+        for i, (actual, curve, interp) in enumerate(raw_curves):
+            offset = final_offset if i == len(raw_curves) - 1 else 0.0
+            display = curve.copy()
+            display[:, 1] += offset
+            curves.append((actual, display, interp, offset))
+            w.writerows((actual, x - x0, x, z, z + offset, offset, int(interp))
+                        for x, z in curve)
 
-    ylo, yhi = profile_limits(al_x, al_z, x0, x1)
-    fig, ax = plt.subplots(figsize=(12, 4.0))
     m_al = (al_x >= x0) & (al_x <= x1)
-    ax.plot(local_x(al_x[m_al], x0), al_z[m_al], color="black", lw=1.15, zorder=5)
+    visible_z = [al_z[m_al]]
+    visible_z.extend(c[:, 1] for _, c, _, _ in curves)
+    zmin = min(float(np.min(v)) for v in visible_z)
+    zmax = max(float(np.max(v)) for v in visible_z)
+    ylo = 5.0 * np.floor(zmin / 5.0)
+    yhi = 5.0 * np.ceil(zmax / 5.0)
+    if yhi <= ylo:
+        yhi = ylo + 5.0
+
+    fig, ax = plt.subplots(figsize=(12, 4.2))
     cm = plt.get_cmap("Oranges")
     denom = max(end, 1e-9)
-    for u, curve, _ in curves:
-        ax.plot(local_x(curve[:, 0], x0), curve[:, 1], color=cm(0.25 + 0.70 * u / denom), lw=0.95)
+    for i, (u, curve, _, offset) in enumerate(curves):
+        is_final = i == len(curves) - 1
+        ax.plot(local_x(curve[:, 0], x0), curve[:, 1],
+                color=cm(0.18 + 0.78 * u / denom),
+                lw=1.65 if is_final else 0.78,
+                alpha=1.0 if is_final else 0.78,
+                zorder=5 if is_final else 2)
+    ax.plot(local_x(al_x[m_al], x0), al_z[m_al],
+            color="black", lw=1.25, zorder=6)
+
     apply_line_template(
         ax, (0.0, x1 - x0), (ylo, yhi),
-        xlabel=r"Measurement coordinate, $x$ [$\mu$m]",
-        ylabel=r"Profile height, $z$ [$\mu$m]",
+        xlabel=r"Measurement coordinate, $x$ [$mu$m]",
+        ylabel=r"Profile height, $z$ [$mu$m]",
         x_major=25.0, y_major=5.0,
     )
     bar = fig.add_axes([0.23, 0.10, 0.55, 0.025])
     fig.colorbar(plt.cm.ScalarMappable(norm=plt.Normalize(0, end), cmap=cm),
-                 cax=bar, orientation="horizontal", label=r"Indentation, $u$ [$\mu$m]")
+                 cax=bar, orientation="horizontal", label=r"Indentation, $u$ [$mu$m]")
     fig.subplots_adjust(left=0.095, right=0.985, top=0.97, bottom=0.30)
     fig.savefig(path, dpi=260)
     plt.close(fig)
 
 
-def front_mesh_edges(coords, rubber_conn):
+def front_mesh_edgesdef front_mesh_edges(coords, rubber_conn):
     faces = rubber_conn[:, [0, 1, 5, 4]]
     q = coords[faces][:, :, [0, 2]]
     return np.stack((q[:, [0, 1]], q[:, [1, 2]], q[:, [2, 3]], q[:, [3, 0]])).reshape(-1, 2, 2)
@@ -367,8 +434,25 @@ def draw_deformed_mesh(ax, coords, rubber_conn, x0, alpha=0.32, lw=0.23):
 
 def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure, x0, x1):
     ylo, yhi = stress_limits(al_x, al_z, x0, x1)
-    chosen = min(states, key=lambda s: abs(float(pressure[id(s)]) - 5.0))
-    fig, axes = plt.subplots(2, 1, figsize=(12, 5.6), sharex=True, sharey=True)
+    chosen = min(states, key=lambda st: abs(float(pressure[id(st)]) - 5.0))
+
+    rubber_nodes = np.unique(rubber_conn)
+    z_abs = np.unique(np.round(xyz[rubber_nodes, 2], 9))
+    z_levels = z_abs - z_abs[0]
+    dz_levels = np.diff(z_levels)
+    node_count = len(rubber_nodes)
+    elem_count = len(rubber_conn)
+    nz_layers = len(z_levels) - 1
+    z_text = ", ".join(f"{z:g}" for z in z_levels)
+    stats_text = (
+        f"Mesh: HEX8G8, three-field solid | rubber: {elem_count} elements, {node_count} nodes | "
+        f"x pitch = {np.median(np.diff(al_x)):.3f} µm, y = 1.0 µm\n"
+        f"z: {nz_layers} layers, height = {z_levels[-1]:g} µm, "
+        f"first/min/max Δz = {dz_levels[0]:g}/{np.min(dz_levels):g}/{np.max(dz_levels):g} µm | "
+        f"z levels [µm]: {z_text}"
+    )
+
+    fig, axes = plt.subplots(2, 1, figsize=(12, 6.35), sharex=True, sharey=True)
     for ax, coords, label in [
         (axes[0], xyz, "Undeformed mesh"),
         (axes[1], xyz + chosen["displacement"],
@@ -380,9 +464,13 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure,
         apply_line_template(ax, (0.0, x1 - x0), (ylo, yhi), x_major=25.0, y_major=5.0)
         ax.text(0.985, 0.86, label, transform=ax.transAxes, ha="right", va="center", fontsize=9.5)
         ax.set_aspect("equal", adjustable="box")
-    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$\mu$m]", fontstyle="italic", fontsize=11, labelpad=7)
-    fig.supylabel(r"Height, $z$ [$\mu$m]", x=0.025, fontstyle="italic", fontsize=11)
-    fig.subplots_adjust(left=0.085, right=0.985, top=0.98, bottom=0.12, hspace=0.35)
+    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$mu$m]",
+                        fontstyle="italic", fontsize=11, labelpad=7)
+    fig.supylabel(r"Height, $z$ [$mu$m]", x=0.025, fontstyle="italic", fontsize=11)
+    fig.text(0.085, 0.018, stats_text, ha="left", va="bottom", fontsize=7.3,
+             bbox=dict(boxstyle="round,pad=0.35", facecolor="white",
+                       edgecolor="#aaaaaa", linewidth=0.5, alpha=0.95))
+    fig.subplots_adjust(left=0.085, right=0.985, top=0.98, bottom=0.205, hspace=0.35)
     fig.savefig(path, dpi=260)
     plt.close(fig)
 
@@ -390,9 +478,16 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure,
     dx = np.diff(al_x)
     dz = np.diff(al_z)
     return {
-        "rubber_hex8_elements": len(rubber_conn),
+        "element_type": "HEX8G8 / three-field-solid",
+        "rubber_hex8_elements": elem_count,
+        "rubber_nodes": node_count,
         "contact_facets": len(bottom_conn),
         "nominal_x_pitch_um": float(np.median(dx)),
+        "rubber_z_layers": nz_layers,
+        "rubber_z_levels_um": ";".join(f"{z:g}" for z in z_levels),
+        "rubber_z_first_dz_um": float(dz_levels[0]),
+        "rubber_z_min_dz_um": float(np.min(dz_levels)),
+        "rubber_z_max_dz_um": float(np.max(dz_levels)),
         "rubber_first_layer_um": float(np.median(np.abs(pts[:len(bottom_conn), 4, 2] - pts[:len(bottom_conn), 0, 2]))),
         "rubber_height_um": float(np.max(xyz[rubber_conn, 2]) - np.min(xyz[rubber_conn, 2])),
         "out_of_plane_um": 1.0,
@@ -405,7 +500,7 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure,
     }
 
 
-def field_points_and_values(xyz, rubber_conn, bottom_conn, st, values):
+def field_points_and_valuesdef field_points_and_values(xyz, rubber_conn, bottom_conn, st, values):
     centers = pp.element_centers_deformed(xyz, rubber_conn, st["displacement"])
     bottom = surface_points(xyz, bottom_conn, st["displacement"])
     edge_ids = np.minimum(np.arange(len(bottom)), len(bottom_conn) - 1)
@@ -416,7 +511,7 @@ def field_points_and_values(xyz, rubber_conn, bottom_conn, st, values):
 
 def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn,
                       states, pressure, al_x, al_z, x0, x1):
-    targets, selected = selected_pressure_states(states, pressure)
+    target_u, selected = selected_displacement_states(states)
     ylo, yhi = stress_limits(al_x, al_z, x0, x1)
     prepared = []
     visible_values = []
@@ -428,6 +523,7 @@ def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn
         if np.any(vis):
             visible_values.append(v[vis])
         prepared.append((st, v, points, field))
+
     all_vis = np.concatenate(visible_values) if visible_values else np.concatenate([p[1] for p in prepared])
     lo = float(np.nanmin(all_vis))
     hi = float(np.nanmax(all_vis))
@@ -440,15 +536,28 @@ def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn
 
     fig, axes = plt.subplots(5, 1, figsize=(12, 12.8), sharex=True, sharey=True)
     cf = None
-    for ax, (st, v, points, field), target in zip(axes, prepared, targets):
+    for ax, (st, v, points, field), u_target in zip(axes, prepared, target_u):
         xplot = points[:, 0] - x0
         tri = mtri.Triangulation(xplot, points[:, 1])
+
+        # Mask triangles below the actual deformed rubber contact surface so
+        # contours remain inside the deformed mesh instead of bridging valleys.
+        bottom = surface_points(xyz, bottom_conn, st["displacement"])
+        bx = bottom[:, 0] - x0
+        bz = bottom[:, 1]
+        tx = np.mean(xplot[tri.triangles], axis=1)
+        tz = np.mean(points[:, 1][tri.triangles], axis=1)
+        bz_i = np.interp(tx, bx, bz, left=np.nan, right=np.nan)
+        mask = np.isnan(bz_i) | (tz < bz_i - 1e-6)
+        tri.set_mask(mask)
+
         cf = ax.tricontourf(tri, field, levels=levels, cmap=cmap, extend="both")
-        ax.tricontour(tri, field, levels=isolines, colors="white", linewidths=0.35, alpha=0.75)
+        ax.tricontour(tri, field, levels=isolines, colors="white",
+                      linewidths=0.42, alpha=0.80)
         current = xyz + st["displacement"]
-        draw_deformed_mesh(ax, current, rubber_conn, x0, alpha=0.25, lw=0.20)
+        draw_deformed_mesh(ax, current, rubber_conn, x0, alpha=0.48, lw=0.27)
         m_al = (al_x >= x0) & (al_x <= x1)
-        ax.plot(local_x(al_x[m_al], x0), al_z[m_al], color="black", lw=0.65, zorder=6)
+        ax.plot(local_x(al_x[m_al], x0), al_z[m_al], color="black", lw=0.72, zorder=7)
         ax.set_xlim(0.0, x1 - x0)
         ax.set_ylim(ylo, yhi)
         ax.set_aspect("equal", adjustable="box")
@@ -456,11 +565,13 @@ def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn
         ax.xaxis.set_major_locator(MultipleLocator(25.0))
         ax.yaxis.set_major_locator(MultipleLocator(5.0))
         ax.text(0.985, 0.88,
-                r"$p_{nom}$ = %.2f MPa,  $u$ = %.3f µm" % (pressure[id(st)], st["indentation_um"]),
+                r"$u$ = %.3f µm,  $p_{nom}$ = %.2f MPa" %
+                (st["indentation_um"], pressure[id(st)]),
                 transform=ax.transAxes, ha="right", va="center", fontsize=9.2,
                 bbox=dict(facecolor="white", alpha=0.72, edgecolor="none", pad=1.5))
-    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$\mu$m]", fontstyle="italic", fontsize=11, labelpad=7)
-    fig.supylabel(r"Height, $z$ [$\mu$m]", x=0.025, fontstyle="italic", fontsize=11)
+    axes[-1].set_xlabel(r"Measurement coordinate, $x$ [$mu$m]",
+                        fontstyle="italic", fontsize=11, labelpad=7)
+    fig.supylabel(r"Height, $z$ [$mu$m]", x=0.025, fontstyle="italic", fontsize=11)
     cbar = fig.colorbar(cf, ax=axes, fraction=0.025, pad=0.018)
     cbar.set_label(label + (f" [{unit}]" if unit else ""), fontsize=10)
     fig.subplots_adjust(left=0.075, right=0.87, top=0.985, bottom=0.075, hspace=0.34)
@@ -468,7 +579,7 @@ def save_single_field(path, label, unit, fn, cmap, xyz, rubber_conn, bottom_conn
     plt.close(fig)
 
 
-def save_fields(paths, xyz, rubber_conn, bottom_conn, states, pressure, al_x, al_z, x0, x1):
+def save_fieldsdef save_fields(paths, xyz, rubber_conn, bottom_conn, states, pressure, al_x, al_z, x0, x1):
     save_single_field(
         paths["max_principal"], "Maximum principal Lagrange strain", "-",
         lambda s: pp.max_principal_sym6(s["strain"]), "cividis",
@@ -503,7 +614,7 @@ def save_gif(path, states, xyz, bottom_conn, al_x, al_z, x0, x1):
         m = (curve[:, 0] >= x0) & (curve[:, 0] <= x1)
         c = curve[m]
         fig, ax = plt.subplots(figsize=(12, 3.3))
-        ax.plot(alx, alz, color="#555555", lw=1.05)
+        ax.plot(alx, alz, color="#444444", lw=2.10)
         ax.plot(local_x(c[:, 0], x0), c[:, 1], color="#d95f0e", lw=1.45)
         apply_line_template(
             ax, (0.0, x1 - x0), (ylo, yhi),
@@ -518,7 +629,7 @@ def save_gif(path, states, xyz, bottom_conn, al_x, al_z, x0, x1):
         arr = np.asarray(fig.canvas.buffer_rgba())[..., :3].copy()
         frames.append(Image.fromarray(arr))
         plt.close(fig)
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=60, loop=0, optimize=True)
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=120, loop=0, optimize=True)
 
 
 def main():
@@ -546,18 +657,18 @@ def main():
 
     x0, x1, peaks = choose_profile_window(al_x, al_z, PROFILE_WINDOW_UM)
     paths = {
-        "contact_ratio_png": output_path(out, 1, args.txt_name, stamp, "png"),
-        "contact_ratio_csv": output_path(out, 1, args.txt_name, stamp, "csv"),
-        "contact_line_png": output_path(out, 2, args.txt_name, stamp, "png"),
-        "contact_line_csv": output_path(out, 2, args.txt_name, stamp, "csv"),
-        "gif": output_path(out, 3, args.txt_name, stamp, "gif"),
-        "max_principal": output_path(out, 4, args.txt_name, stamp, "png"),
-        "mesh": output_path(out, 5, args.txt_name, stamp, "png"),
-        "minus_sigma": output_path(out, 6, args.txt_name, stamp, "png"),
-        "surface_png": output_path(out, 7, args.txt_name, stamp, "png"),
-        "surface_csv": output_path(out, 7, args.txt_name, stamp, "csv"),
-        "von_mises": output_path(out, 8, args.txt_name, stamp, "png"),
-        "summary": output_path(out, 9, args.txt_name, stamp, "csv"),
+        "contact_ratio_png": output_path(out, 1, args.txt_name, "contact_length_ratio", stamp, "png"),
+        "contact_ratio_csv": output_path(out, 1, args.txt_name, "contact_length_ratio", stamp, "csv"),
+        "contact_line_png": output_path(out, 2, args.txt_name, "contact_line_five_levels", stamp, "png"),
+        "contact_line_csv": output_path(out, 2, args.txt_name, "contact_line_five_levels", stamp, "csv"),
+        "gif": output_path(out, 3, args.txt_name, "indentation", stamp, "gif"),
+        "max_principal": output_path(out, 4, args.txt_name, "max_principal_Lagrange_strain_five_levels", stamp, "png"),
+        "mesh": output_path(out, 5, args.txt_name, "mesh_panels", stamp, "png"),
+        "minus_sigma": output_path(out, 6, args.txt_name, "minus_sigma_zz_five_levels", stamp, "png"),
+        "surface_png": output_path(out, 7, args.txt_name, "surface_evolution", stamp, "png"),
+        "surface_csv": output_path(out, 7, args.txt_name, "surface_evolution", stamp, "csv"),
+        "von_mises": output_path(out, 8, args.txt_name, "von_Mises_five_levels", stamp, "png"),
+        "summary": output_path(out, 9, args.txt_name, "model_mesh_summary", stamp, "csv"),
     }
 
     save_contact_curve(paths["contact_ratio_png"], paths["contact_ratio_csv"],
