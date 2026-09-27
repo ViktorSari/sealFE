@@ -29,6 +29,7 @@ so the CI build does not require Intel MKL.
 
 from pathlib import Path
 import os
+import re
 import numpy as np
 import pyfebio as feb
 
@@ -406,16 +407,24 @@ def main():
 
     # Optional augmented-Lagrangian enforcement of the volumetric constraint
     # for the three-field uncoupled rubber domain. This is distinct from
-    # augmented-Lagrangian contact.
+    # augmented-Lagrangian contact. pyFEBio writes SolidDomain as a self-closing
+    # tag and may reorder its attributes, so match it by name/type rather than
+    # by an exact literal string.
     if VOLUME_AUGMENT:
-        target = '<SolidDomain name="rubber" mat="rubber" type="three-field-solid">'
-        replacement = (
-            target
-            + f'<laugon>1</laugon><atol>{VOLUME_AUGTOL:.9g}</atol>'
+        pat = re.compile(
+            r'<SolidDomain\\b(?=[^>]*\\bname="rubber")'
+            r'(?=[^>]*\\btype="three-field-solid")[^>]*/>'
         )
-        if target not in xml:
+        m = pat.search(xml)
+        if m is None:
             raise RuntimeError("Could not locate rubber three-field SolidDomain")
-        xml = xml.replace(target, replacement, 1)
+        open_tag = m.group(0)[:-2] + ">"
+        replacement = (
+            open_tag
+            + f'<laugon>1</laugon><atol>{VOLUME_AUGTOL:.9g}</atol>'
+            + '</SolidDomain>'
+        )
+        xml = xml[:m.start()] + replacement + xml[m.end():]
 
     OUTPUT_FEB.write_text(xml, encoding="utf-8")
 
