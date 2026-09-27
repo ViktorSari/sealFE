@@ -64,6 +64,8 @@ MAX_INDENTATION_UM = env_float("B129_MAX_INDENTATION_UM", 50.0)
 DISPLACEMENT_INCREMENT_UM = env_float("B129_DISPLACEMENT_INCREMENT_UM", 0.1)
 CONTACT_PENALTY_MPA_PER_UM = env_float("B129_CONTACT_PENALTY_MPA_PER_UM", 0.30)
 CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
+CONTACT_AUG_TOL = env_float("B129_CONTACT_AUG_TOL", 0.01)
+CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
 SIDE_BC_MODE = env_str("B129_SIDE_BC_MODE", "both_sides")
@@ -353,7 +355,8 @@ def main():
             two_pass=0,
             symmetric_stiffness=1,
             fric_coeff=0,
-            maxaug=25,
+            tolerance=CONTACT_AUG_TOL,
+            maxaug=CONTACT_MAX_AUG,
             seg_up=5,
             search_radius=CONTACT_SEARCH_RADIUS_UM,
         )
@@ -436,6 +439,7 @@ def main():
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
+    print(f"Contact augmentation: tolerance={CONTACT_AUG_TOL}, maxaug={CONTACT_MAX_AUG}")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
     print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}")
     print(f"Volumetric augmentation: {bool(VOLUME_AUGMENT)}; atol={VOLUME_AUGTOL}")
