@@ -1,4 +1,4 @@
-name: B129 evidence-based K validation
+name: B129 incompressibility convergence
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        k_mpa: ["100.0", "117.6470588", "123.4", "150.0"]
+        k_mpa: ["100.0", "120.0", "250.0", "500.0", "850.0", "1200.0", "2500.0", "5000.0"]
 
     env:
       B129_SURFACE_DZ_UM: "0.75"
@@ -67,7 +67,7 @@ jobs:
             echo "K_MPa=${{ matrix.k_mpa }}"
             echo "surface_dz_um=0.75"
             echo "x_pitch_um=0.5"
-            echo "basis=prior AEM compressible MR D1/n evidence"
+            echo "basis=incompressible-limit convergence sweep"
           } > results/k_case.txt
 
       - name: Clone FEBio 4.13
