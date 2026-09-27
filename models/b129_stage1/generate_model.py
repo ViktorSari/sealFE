@@ -372,7 +372,8 @@ def main():
     print(f"Rigid Al hex8 elements: {len(al_elements)}")
     print(f"Rubber hex8 elements: {len(rub_elements)}")
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
-    print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")\n    print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
+    print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
+    print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
