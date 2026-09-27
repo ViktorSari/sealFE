@@ -1,11 +1,11 @@
-name: B129 volumetric augmentation validation
+name: B129 augmented K convergence
 
 on:
   workflow_dispatch:
   push:
     branches: [main, codex/b129-volume-augmentation-fix]
     paths:
-      - ".github/workflows/b129_volume_augmentation_validation.yml"
+      - ".github/workflows/b129_volume_k_convergence.yml"
       - "models/b129_stage1/generate_model.py"
       - "models/b129_stage1/postprocess_results.py"
 
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: b129-volume-augmentation-${{ github.ref }}
+  group: b129-volume-k-convergence-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,14 +26,11 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - case: baseline_K850_noaug
-            k_mpa: "850.0"
-            augment: "0"
-          - case: aug_K850
-            k_mpa: "850.0"
+          - case: aug_K2000
+            k_mpa: "2000.0"
             augment: "1"
-          - case: aug_K5000
-            k_mpa: "5000.0"
+          - case: aug_K10000
+            k_mpa: "10000.0"
             augment: "1"
 
     env:
@@ -138,6 +135,22 @@ jobs:
             exit 0
           fi
           exit 1
+
+      - name: Keep compact numerical diagnostics
+        if: always()
+        run: |
+          mkdir -p compact
+          cp results/B129_selected_states.csv results/B129_J_diagnostics.csv results/B129_pressure_history.csv results/B129_final_summary.txt results/augmentation_case.txt compact/ 2>/dev/null || true
+          tail -n 100 results/B129_stage1_normal_contact.log > compact/solver_log_tail.txt 2>/dev/null || true
+
+      - name: Upload compact result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B129-volaug-${{ matrix.case }}-compact
+          path: compact/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload result
         if: always()
