@@ -491,7 +491,7 @@ def main():
         for target in targets:
             reached = pressure_target_reached(pressures, target)
             if not reached:
-                w.writerow([target, 0] + [""] * 20)
+                w.writerow([target, 0] + [""] * 21)
                 continue
 
             idx, st = nearest_state_by_pressure(
@@ -642,7 +642,7 @@ def main():
         for target in targets:
             reached = pressure_target_reached(pressures, target)
             if not reached:
-                w.writerow([f"{target:g}MPa", 0] + [""] * 12)
+                w.writerow([f"{target:g}MPa", 0] + [""] * 13)
                 continue
             idx, st = nearest_state_by_pressure(states, pressures, target)
             Js = relative_volume_stats(
