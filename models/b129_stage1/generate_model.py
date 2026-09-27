@@ -43,6 +43,10 @@ def env_float(name, default):
     return float(os.environ.get(name, default))
 
 
+def env_str(name, default):
+    return str(os.environ.get(name, default)).strip()
+
+
 OUT_OF_PLANE_UM = 1.0
 RUBBER_HEIGHT_UM = env_float("B129_RUBBER_HEIGHT_UM", 100.0)
 AL_BASE_MARGIN_UM = 5.0
@@ -54,6 +58,10 @@ BULK_MODULUS_MPA = env_float("B129_BULK_MODULUS_MPA", 850.0)  # placeholder; sen
 MAX_INDENTATION_UM = env_float("B129_MAX_INDENTATION_UM", 50.0)
 DISPLACEMENT_INCREMENT_UM = env_float("B129_DISPLACEMENT_INCREMENT_UM", 0.1)
 CONTACT_PENALTY_MPA_PER_UM = env_float("B129_CONTACT_PENALTY_MPA_PER_UM", 0.30)
+CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
+SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
+SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
+SIDE_BC_MODE = env_str("B129_SIDE_BC_MODE", "both_sides")
 
 TIME_STEPS = int(np.ceil(MAX_INDENTATION_UM / DISPLACEMENT_INCREMENT_UM))
 STEP_SIZE = 1.0 / TIME_STEPS
@@ -169,8 +177,8 @@ def main():
             ),
             solver=feb.control.SolidSolver(
                 symmetric_stiffness="symmetric",
-                dtol=0.01,
-                etol=0.01,
+                dtol=SOLVER_DTOL,
+                etol=SOLVER_ETOL,
                 max_refs=100,
                 lsiter=10,
                 lsmin=0.001,
@@ -290,24 +298,40 @@ def main():
         )
     )
 
-    # The 200 um strip represents material embedded in a larger rubber body.
-    # Roller constraints at the two x-boundaries suppress nonphysical lateral
-    # rigid drift / severe shear while leaving vertical motion free.
-    side_nodes = np.unique(
-        np.concatenate([
-            rub_nodes[0, :, :].reshape(-1),
-            rub_nodes[-1, :, :].reshape(-1),
-        ])
-    ).astype(int).tolist()
+    # Lateral constraint sensitivity:
+    # - both_sides: reference rollers on both x boundaries
+    # - left_side: roller only on the left boundary
+    # - center_top_anchor: minimal x anchor at the top centre line
+    if SIDE_BC_MODE == "both_sides":
+        x_bc_nodes = np.unique(
+            np.concatenate([
+                rub_nodes[0, :, :].reshape(-1),
+                rub_nodes[-1, :, :].reshape(-1),
+            ])
+        ).astype(int).tolist()
+        x_bc_name = "rubber_x_sides"
+    elif SIDE_BC_MODE == "left_side":
+        x_bc_nodes = np.unique(rub_nodes[0, :, :].reshape(-1)).astype(int).tolist()
+        x_bc_name = "rubber_x_left_side"
+    elif SIDE_BC_MODE == "center_top_anchor":
+        ic = int(np.argmin(np.abs(x - 0.5 * (x[0] + x[-1]))))
+        x_bc_nodes = np.unique(rub_nodes[ic, :, -1].reshape(-1)).astype(int).tolist()
+        x_bc_name = "rubber_x_center_top_anchor"
+    else:
+        raise ValueError(
+            "B129_SIDE_BC_MODE must be one of: both_sides, left_side, "
+            "center_top_anchor"
+        )
+
     model.mesh_.add_node_set(
         feb.mesh.NodeSet(
-            name="rubber_x_sides",
-            text=",".join(map(str, side_nodes)),
+            name=x_bc_name,
+            text=",".join(map(str, x_bc_nodes)),
         )
     )
     model.boundary_.add_bc(
         feb.boundary.BCZeroDisplacement(
-            node_set="rubber_x_sides",
+            node_set=x_bc_name,
             x_dof=1, y_dof=0, z_dof=0,
         )
     )
@@ -324,7 +348,7 @@ def main():
             fric_coeff=0,
             maxaug=25,
             seg_up=5,
-            search_radius=5.0,
+            search_radius=CONTACT_SEARCH_RADIUS_UM,
         )
     )
 
@@ -383,6 +407,8 @@ def main():
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
+    print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
+    print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
 
