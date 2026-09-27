@@ -224,7 +224,17 @@ def interpolate_crossing(xs, ys, target):
     return math.nan
 
 
+def pressure_target_reached(pressures, target):
+    p = np.asarray(pressures, dtype=float)
+    return bool(np.nanmin(p) <= target <= np.nanmax(p))
+
+
 def nearest_state_by_pressure(states, pressures, target):
+    if not pressure_target_reached(pressures, target):
+        raise ValueError(
+            f"Target pressure {target:g} MPa is outside the converged range "
+            f"[{np.nanmin(pressures):.6g}, {np.nanmax(pressures):.6g}] MPa"
+        )
     idx = int(np.argmin(np.abs(np.asarray(pressures) - target)))
     return idx, states[idx]
 
@@ -454,6 +464,7 @@ def main():
         w.writerow(
             [
                 "target_pressure_MPa",
+                "target_reached",
                 "stored_indentation_um",
                 "stored_nominal_pressure_MPa",
                 "interpolated_indentation_um",
@@ -478,6 +489,11 @@ def main():
             ]
         )
         for target in targets:
+            reached = pressure_target_reached(pressures, target)
+            if not reached:
+                w.writerow([target, 0] + [""] * 20)
+                continue
+
             idx, st = nearest_state_by_pressure(
                 states, pressures, target
             )
@@ -498,6 +514,7 @@ def main():
             w.writerow(
                 [
                     target,
+                    1,
                     f"{st['indentation_um']:.9g}",
                     f"{pressures[idx]:.9g}",
                     f"{interpolate_crossing(indentations, pressures, target):.9g}",
@@ -525,6 +542,7 @@ def main():
         w.writerow(
             [
                 "FINAL_STABLE",
+                1,
                 f"{final['indentation_um']:.9g}",
                 f"{final_pressure:.9g}",
                 "",
@@ -579,30 +597,33 @@ def main():
         ),
     )
 
-    idx5, st5 = nearest_state_by_pressure(states, pressures, 5.0)
-    J5 = gauss_point_relative_volume(
-        xyz, rubber_conn, st5["displacement"]
-    )
-    J5stat = relative_volume_stats(J5)
-    plot_stress_field(
-        out / "B129_final_Jmin_Gauss_at_5MPa.png",
-        xyz,
-        rubber_conn,
-        st5,
-        np.min(J5, axis=1),
-        "minimum Gauss-point relative volume J [-]",
-        (
-            "B129 near 5 MPa – minimum Gauss-point J, "
-            f"u={st5['indentation_um']:.3f} µm, "
-            f"pnom={pressures[idx5]:.3f} MPa"
-        ),
-    )
+    reached_5MPa = pressure_target_reached(pressures, 5.0)
+    if reached_5MPa:
+        idx5, st5 = nearest_state_by_pressure(states, pressures, 5.0)
+        J5 = gauss_point_relative_volume(
+            xyz, rubber_conn, st5["displacement"]
+        )
+        J5stat = relative_volume_stats(J5)
+        plot_stress_field(
+            out / "B129_final_Jmin_Gauss_at_5MPa.png",
+            xyz,
+            rubber_conn,
+            st5,
+            np.min(J5, axis=1),
+            "minimum Gauss-point relative volume J [-]",
+            (
+                "B129 near 5 MPa – minimum Gauss-point J, "
+                f"u={st5['indentation_um']:.3f} µm, "
+                f"pnom={pressures[idx5]:.3f} MPa"
+            ),
+        )
 
     with (out / "B129_J_diagnostics.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
                 "state",
+                "target_reached",
                 "indentation_um",
                 "nominal_pressure_MPa",
                 "J_min",
@@ -619,6 +640,10 @@ def main():
             ]
         )
         for target in targets:
+            reached = pressure_target_reached(pressures, target)
+            if not reached:
+                w.writerow([f"{target:g}MPa", 0] + [""] * 12)
+                continue
             idx, st = nearest_state_by_pressure(states, pressures, target)
             Js = relative_volume_stats(
                 gauss_point_relative_volume(
@@ -628,6 +653,7 @@ def main():
             w.writerow(
                 [
                     f"{target:g}MPa",
+                    1,
                     f"{st['indentation_um']:.9g}",
                     f"{pressures[idx]:.9g}",
                     f"{Js['J_min']:.9g}",
@@ -646,6 +672,7 @@ def main():
         w.writerow(
             [
                 "FINAL_STABLE",
+                1,
                 f"{final['indentation_um']:.9g}",
                 f"{final_pressure:.9g}",
                 f"{final_Jstat['J_min']:.9g}",
@@ -789,6 +816,8 @@ def main():
             f"last_converged_nominal_pressure_MPa="
             f"{final_pressure:.9g}\n"
         )
+        f.write(f"max_converged_nominal_pressure_MPa={np.max(pressures):.9g}\n")
+        f.write(f"reached_5MPa={int(reached_5MPa)}\n")
         for k, v in final_contact.items():
             f.write(f"{k}={v:.9g}\n")
         f.write(
@@ -810,6 +839,8 @@ def main():
         "last_converged_nominal_pressure_MPa="
         f"{final_pressure:.9g}"
     )
+    print(f"max_converged_nominal_pressure_MPa={np.max(pressures):.9g}")
+    print(f"reached_5MPa={int(reached_5MPa)}")
     print(
         "projected_contact_fraction="
         f"{final_contact['projected_contact_fraction']:.9g}"
