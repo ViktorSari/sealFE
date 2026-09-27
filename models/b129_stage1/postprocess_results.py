@@ -12,11 +12,10 @@ Generated outputs:
 - true-scale rubber bottom-surface history every 0.5 um indentation
 - CSV containing those surface-history curves
 
-The FEBio contact-pressure and contact-gap surface variables are zero for the
-current one-pass sliding-elastic setup. Therefore projected contact activity is
-reconstructed from the deformed rubber/rigid-profile geometry, and local normal
-pressure is represented by -sigma_zz in the first rubber element layer. The
-spatial mean of this proxy is checked against the top-reaction nominal pressure.
+All XPLT regions are read by name and rubber_bottom connectivity is verified
+against the FEB file. The active FEBio facet-average contact pressure is kept
+separate from the first-layer -sigma_zz proxy. Reaction balance validates the
+contact pressure integral; zero-only surface data at nonzero load is rejected.
 """
 from __future__ import annotations
 
@@ -62,16 +61,40 @@ def child(data: bytes, start: int, end: int, tag: int):
     raise ValueError(f"Missing XPLT chunk {tag:#x}")
 
 
-def raw_var(data: bytes, var_chunk):
+def raw_regions(data, var_chunk):
     _, begin, end = var_chunk
     i0, _ = child(data, begin, end, VAR_ID)
     var_id = struct.unpack_from("<I", data, i0)[0]
     d0, d1 = child(data, begin, end, VAR_DATA)
-    region_id, nbytes = struct.unpack_from("<II", data, d0)
-    if d0 + 8 + nbytes > d1:
-        raise ValueError("Invalid variable payload length")
-    arr = np.frombuffer(data, dtype="<f4", count=nbytes // 4, offset=d0 + 8)
-    return var_id, region_id, arr
+    regions = {rid: np.frombuffer(data, dtype="<f4", count=(z-a)//4, offset=a)
+               for rid, a, z in chunks(data, d0, d1)}
+    return var_id, regions
+
+
+def xplt_metadata(data):
+    r0, r1 = child(data, 4, len(data), 0x01000000)
+    d0, d1 = child(data, r0, r1, 0x01020000)
+    names = {}
+    for group, a, z in chunks(data, d0, d1):
+        names[group] = {}
+        for i, (_, j, k) in enumerate(chunks(data, a, z), 1):
+            u, v = child(data, j, k, 0x01020004)
+            names[group][data[u:v].split(b"\0")[0].decode()] = i
+    m0, m1 = child(data, 4, len(data), 0x01040000)
+    a, z = child(data, m0, m1, 0x01043000)
+    surfaces = {}
+    for _, j, k in chunks(data, a, z):
+        h, e = child(data, j, k, 0x01043101)
+        u, _ = child(data, h, e, 0x01043102)
+        rid = struct.unpack_from("<I", data, u)[0]
+        u, v = child(data, h, e, 0x01043104)
+        n = struct.unpack_from("<I", data, u)[0]
+        name = data[u+4:u+4+n].decode()
+        u, v = child(data, j, k, 0x01043200)
+        faces = [np.frombuffer(data, dtype="<i4", count=(f-e)//4, offset=e)[2:6]
+                 for _, e, f in chunks(data, u, v)]
+        surfaces[name] = (rid, np.asarray(faces))
+    return names, surfaces
 
 
 def parse_feb_mesh(feb_path: Path):
@@ -130,63 +153,48 @@ def parse_feb_mesh(feb_path: Path):
     )
 
 
-def parse_states(xplt_path: Path, ramp_um: float):
+def parse_states(xplt_path: Path, ramp_um: float, bottom_conn=None):
     data = xplt_path.read_bytes()
     if data[:4] != b"BEF\0":
         raise ValueError("Not a FEBio XPLT file")
-
+    names, surfaces = xplt_metadata(data)
+    sid, faces = surfaces["rubber_bottom"]
+    if bottom_conn is not None and not np.array_equal(faces, bottom_conn):
+        raise ValueError("XPLT rubber_bottom connectivity differs from FEB")
     states = []
-    for state_chunk in chunks(data, 4, len(data)):
-        if state_chunk[0] != STATE:
+    for tag, begin, end in chunks(data, 4, len(data)):
+        if tag != STATE:
             continue
-        _, begin, end = state_chunk
-
         h0, h1 = child(data, begin, end, STATE_HEADER)
         t0, _ = child(data, h0, h1, STATE_TIME)
         time = struct.unpack_from("<f", data, t0)[0]
-
+        f0, _ = child(data, h0, h1, 0x02010003)
+        if struct.unpack_from("<I", data, f0)[0] != 0:
+            continue  # Never use failed/debug iterates as converged results.
         d0, d1 = child(data, begin, end, STATE_DATA)
-
-        n0, n1 = child(data, d0, d1, NODE_DATA)
-        node_vars = list(chunks(data, n0, n1))
-        if len(node_vars) < 2:
-            raise ValueError("Expected displacement and reaction-force variables")
-        _, _, disp_flat = raw_var(data, node_vars[0])
-        _, _, force_flat = raw_var(data, node_vars[1])
-
-        dom0, dom1 = child(data, d0, d1, DOMAIN_DATA)
-        domain_vars = list(chunks(data, dom0, dom1))
-        if len(domain_vars) < 2:
-            raise ValueError("Expected stress and Lagrange-strain variables")
-        _, _, stress_flat = raw_var(data, domain_vars[0])
-        _, _, strain_flat = raw_var(data, domain_vars[1])
-
-        # Read/validate surface variables even though the present FEBio
-        # formulation exports zero contact pressure/gap values.
-        surf0, surf1 = child(data, d0, d1, SURFACE_DATA)
-        surface_vars = list(chunks(data, surf0, surf1))
-        if len(surface_vars) < 3:
-            raise ValueError("Expected contact pressure, gap and status variables")
-        _, _, cp = raw_var(data, surface_vars[0])
-        _, _, gap = raw_var(data, surface_vars[1])
-        _, _, status = raw_var(data, surface_vars[2])
-
-        states.append(
-            {
-                "time": float(time),
-                "indentation_um": float(time * ramp_um),
-                "displacement": disp_flat.reshape(-1, 3),
-                "reaction": force_flat.reshape(-1, 3),
-                "stress": stress_flat.reshape(-1, 6),
-                "strain": strain_flat.reshape(-1, 6),
-                "contact_pressure_raw": cp.astype(float),
-                "contact_gap_raw": gap.astype(float),
-                "contact_status_raw": status.astype(float),
-            }
-        )
-
-    if not states:
-        raise ValueError("No converged XPLT states found")
+        def values(tag, group, name, region=None):
+            a, z = child(data, d0, d1, tag)
+            variables = dict(raw_regions(data, v) for v in chunks(data, a, z))
+            regions = variables[names[group][name]]
+            if region is None:
+                if len(regions) != 1:
+                    raise ValueError(f"Ambiguous domain for {name}: {list(regions)}")
+                return next(iter(regions.values()))
+            return regions[region]
+        st = {"time": float(time), "indentation_um": float(time*ramp_um),
+              "contact_surface_id": sid}
+        for key, name in [("displacement", "displacement"), ("reaction", "reaction forces")]:
+            st[key] = values(NODE_DATA, 0x01023000, name, 0).reshape(-1, 3)
+        for key, name in [("stress", "stress"), ("strain", "Lagrange strain")]:
+            st[key] = values(DOMAIN_DATA, 0x01024000, name).reshape(-1, 6)
+        for key, name in [("contact_pressure_raw", "contact pressure"),
+                          ("contact_gap_raw", "contact gap"), ("contact_status_raw", "contact status")]:
+            st[key] = values(SURFACE_DATA, 0x01025000, name, sid)
+        states.append(st)
+    if len(states) < 2:
+        raise ValueError("No loaded converged XPLT states found")
+    if np.any(np.diff([s["time"] for s in states]) <= 0):
+        raise ValueError("Non-monotonic XPLT times")
     return states
 
 
@@ -354,6 +362,30 @@ def geometric_contact_metrics(
     }
 
 
+def active_surface_metrics(xyz, bottom_conn, state, nominal_pressure_mpa,
+                           nominal_width_um=200.0):
+    """Use the named rubber_bottom facet field, with a reaction-balance check."""
+    cp = state['contact_pressure_raw']
+    gap = state['contact_gap_raw']
+    if len(cp) != len(bottom_conn) or len(gap) != len(bottom_conn):
+        raise ValueError('XPLT rubber_bottom data length differs from FEB facets')
+    if nominal_pressure_mpa > 1e-6 and not np.any(cp > 1e-8):
+        raise ValueError('Zero contact-pressure field under nonzero reaction')
+    deformed = xyz + state['displacement']
+    dx = deformed[bottom_conn[:, 3], 0] - deformed[bottom_conn[:, 0], 0]
+    if np.any(dx <= 0):
+        raise ValueError('Folded projected rubber contact facet')
+    mean = float(np.dot(cp, dx) / nominal_width_um)
+    return {
+        'projected_positive_pressure_fraction': float(np.sum(dx[cp > 1e-8]) / nominal_width_um),
+        'max_facet_average_contact_pressure_MPa': float(np.max(cp)),
+        'projected_mean_contact_pressure_MPa': mean,
+        'pressure_reaction_difference_pct': 100 * (mean - nominal_pressure_mpa) / nominal_pressure_mpa if nominal_pressure_mpa else 0.0,
+        'max_FEBio_contact_gap_um': float(np.max(gap)),
+        'min_FEBio_contact_gap_um': float(np.min(gap)),
+    }
+
+
 def plot_stress_field(
     path,
     xyz,
@@ -424,7 +456,7 @@ def main():
         al_x,
         al_z,
     ) = parse_feb_mesh(args.feb)
-    states = parse_states(args.xplt, args.ramp_um)
+    states = parse_states(args.xplt, args.ramp_um, bottom_conn)
 
     rubber_node_ids = np.unique(rubber_conn.reshape(-1))
     zmax = xyz[rubber_node_ids, 2].max()
@@ -436,6 +468,25 @@ def main():
         reaction_pressure(st, top_node_ids, nominal_area) for st in states
     ]
     indentations = [st["indentation_um"] for st in states]
+
+    surface_rows = []
+    for target in [0.5, 1.0, 2.0, 3.0, 4.0, 5.0, "FINAL_STABLE"]:
+        if target == "FINAL_STABLE":
+            idx = len(states) - 1
+        elif pressure_target_reached(pressures, target):
+            idx = int(np.argmin(np.abs(np.asarray(pressures) - target)))
+        else:
+            continue
+        surface_rows.append({
+            "target_pressure_MPa": target,
+            "stored_indentation_um": states[idx]["indentation_um"],
+            "stored_nominal_pressure_MPa": pressures[idx],
+            **active_surface_metrics(xyz, bottom_conn, states[idx], pressures[idx], args.nominal_width_um),
+        })
+    with (out / "B129_true_contact_metrics.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(surface_rows[0]))
+        w.writeheader()
+        w.writerows(surface_rows)
 
     write_pressure_history(
         out / "B129_pressure_history.csv", states, pressures
@@ -818,6 +869,10 @@ def main():
         )
         f.write(f"max_converged_nominal_pressure_MPa={np.max(pressures):.9g}\n")
         f.write(f"reached_5MPa={int(reached_5MPa)}\n")
+        f.write("contact_pressure_source=FEBio rubber_bottom facet average\n")
+        for k, v in surface_rows[-1].items():
+            if k not in {"target_pressure_MPa", "stored_indentation_um", "stored_nominal_pressure_MPa"}:
+                f.write(f"{k}={v:.9g}\n")
         for k, v in final_contact.items():
             f.write(f"{k}={v:.9g}\n")
         f.write(

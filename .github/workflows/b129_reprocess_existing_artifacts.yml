@@ -1,0 +1,107 @@
+name: B129 reprocess existing XPLT artifacts
+
+on:
+  push:
+    branches: [codex/b129-active-contact-output]
+    paths:
+      - .github/workflows/b129_reprocess_existing_artifacts.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reprocess:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - run_id: 36311339306
+            ramp_um: 6.0
+            group: remaining
+          - run_id: 36311949099
+            ramp_um: 4.2
+            group: final_penalty
+          - run_id: 36311298079
+            ramp_um: 6.0
+            group: publication
+          - run_id: 36311298077
+            ramp_um: 4.2
+            group: mesh
+          - run_id: 36312551773
+            ramp_um: 4.2
+            group: incompressibility
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Reprocess stored solver results only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p corrected
+          gh api "repos/${REPO}/actions/runs/${{ matrix.run_id }}/artifacts?per_page=100" \
+            --jq '.artifacts[] | [.name, .id] | @tsv' > artifact_list.tsv
+          test -s artifact_list.tsv
+          failed=0
+          while IFS=$'\t' read -r name artifact_id; do
+            case "$name" in B129-*) ;; *) continue ;; esac
+            echo "Reprocessing $name ($artifact_id)"
+            mkdir -p "work/$name" "corrected/$name"
+            if ! gh run download "${{ matrix.run_id }}" -n "$name" -D "work/$name"; then
+              echo "download_failed" > "corrected/$name/reprocess_status.txt"
+              failed=1
+              continue
+            fi
+            cp "work/$name/B129_final_summary.txt" "corrected/$name/" 2>/dev/null || true
+            cp "work/$name/B129_J_diagnostics.csv" "corrected/$name/" 2>/dev/null || true
+            cp "work/$name/validation_case.txt" "corrected/$name/" 2>/dev/null || true
+            if test -s "work/$name/B129_stage1_normal_contact.xplt" && test -s "work/$name/B129_stage1_normal_contact.feb"; then
+              if python models/b129_stage1/postprocess_results.py \
+                "work/$name/B129_stage1_normal_contact.xplt" \
+                "work/$name/B129_stage1_normal_contact.feb" \
+                --ramp-um "${{ matrix.ramp_um }}" \
+                --output-dir "corrected/$name" > "corrected/$name/reprocess_stdout.txt" 2>&1; then
+                echo "success" > "corrected/$name/reprocess_status.txt"
+              else
+                echo "postprocess_failed" > "corrected/$name/reprocess_status.txt"
+                failed=1
+              fi
+            else
+              echo "raw_feb_or_xplt_missing" > "corrected/$name/reprocess_status.txt"
+              failed=1
+            fi
+            rm -rf "work/$name"
+          done < artifact_list.tsv
+          echo "case_failures=$failed" >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
+      - name: Print corrected numerical metrics
+        if: always()
+        shell: bash
+        run: |
+          for dir in corrected/B129-*; do
+            test -d "$dir" || continue
+            echo "BEGIN_CASE $(basename "$dir")"
+            for file in reprocess_status.txt B129_final_summary.txt B129_true_contact_metrics.csv B129_selected_states.csv; do
+              echo "BEGIN_FILE $file"
+              if test -f "$dir/$file"; then cat "$dir/$file"; else echo "MISSING"; fi
+              echo "END_FILE $file"
+            done
+            echo "END_CASE"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: B129-corrected-${{ matrix.group }}
+          path: corrected/
+          if-no-files-found: error
