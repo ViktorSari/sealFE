@@ -345,16 +345,22 @@ def geometric_contact_metrics(
     for q in bottom_conn:
         qx = xdef[q]
         qz = zdef[q]
-        az = np.interp(qx, al_x, al_z)
+        az = np.interp(qx, al_x, al_z, left=np.nan, right=np.nan)
         facet_gaps.append(float(np.mean(qz - az)))
     facet_gaps = np.asarray(facet_gaps)
 
+    valid = np.isfinite(facet_gaps)
+    complete = bool(np.all(valid))
     active = facet_gaps <= gap_tol_um
     nfacets = len(bottom_conn)
     normal_pressure_proxy = np.maximum(0.0, -stress[:nfacets, 2])
 
     return {
-        "projected_contact_fraction": float(np.count_nonzero(active) / nfacets),
+        "projected_contact_fraction": float(np.count_nonzero(active) / nfacets) if complete else math.nan,
+        "geometric_profile_coverage_facet_fraction": float(np.mean(valid)),
+        "geometric_out_of_profile_facet_count": int(np.count_nonzero(~valid)),
+        "min_geometric_gap_in_profile_um": float(np.min(facet_gaps[valid])) if np.any(valid) else math.nan,
+        "max_geometric_gap_in_profile_um": float(np.max(facet_gaps[valid])) if np.any(valid) else math.nan,
         "min_geometric_gap_um": float(np.min(facet_gaps)),
         "max_geometric_gap_um": float(np.max(facet_gaps)),
         "max_normal_pressure_proxy_MPa": float(np.max(normal_pressure_proxy)),
