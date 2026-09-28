@@ -17,25 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: elastic_penalty_p040
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.40'
-            step: '0.05'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: PENALTY
-            smooth_aug: '0'
-          - case_id: elastic_penalty_p020
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.20'
-            step: '0.05'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: PENALTY
-            smooth_aug: '0'
-          - case_id: elastic_smooth_aug_p040
+          - case_id: smooth_s05_elastic_p040
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
@@ -43,7 +25,18 @@ jobs:
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
-            smooth_aug: '1'
+            smooth_aug: '0'
+            sigma: '0.5'
+          - case_id: smooth_s075_elastic_p040
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.40'
+            step: '0.05'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0.75'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
@@ -61,12 +54,13 @@ jobs:
       B129_SIDE_BC_MODE: both_sides
       B129_SOLVER_DTOL: '0.01'
       B129_SOLVER_ETOL: '0.01'
-      B129_SOLVER_LS_CHECK_JACOBIANS: '1'
+      B129_SOLVER_LS_CHECK_JACOBIANS: '0'
       B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
       B129_SOLVER_LSITER: ${{ matrix.lsiter }}
       B129_CONTACT_FORMULATION: sliding-elastic
       B129_CONTACT_ENFORCEMENT: ${{ matrix.enforcement }}
       B129_CONTACT_SMOOTH_AUG: ${{ matrix.smooth_aug }}
+      B129_PROFILE_GAUSSIAN_SIGMA_SAMPLES: ${{ matrix.sigma }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -86,6 +80,7 @@ jobs:
           PY
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
           cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
+          cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
           printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; local x=0–200 um, original z retained.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
