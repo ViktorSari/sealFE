@@ -1,10 +1,11 @@
-name: B129 augmented example outputs
+name: B129 K2000 final normal-contact outputs
 
 on:
   push:
-    branches: [codex/b129-volume-augmentation-fix]
+    branches: [codex/b129-contact-closure]
     paths:
       - ".github/workflows/b129_example_outputs.yml"
+      - "models/b129_stage1/example_outputs.py"
 
 permissions:
   actions: read
@@ -21,16 +22,16 @@ jobs:
           python-version: "3.12"
       - name: Install plotting dependencies
         run: pip install numpy matplotlib pillow
-      - name: Download K5000 full XPLT artifact
+      - name: Download selected K2000 full XPLT artifact
         uses: actions/download-artifact@v4
         with:
-          name: B129-volaug-aug_K5000
+          name: B129-contact-step-isolation-p040_aug010_step050
           path: input
-          run-id: 36324031328
+          run-id: 36332294094
           github-token: ${{ github.token }}
       - name: Generate and check example outputs
         run: |
-          python models/b129_stage1/example_outputs.py input/B129_stage1_normal_contact.xplt input/B129_stage1_normal_contact.feb --ramp-um 4.2 --output-dir example
+          python models/b129_stage1/example_outputs.py input/B129_stage1_normal_contact.xplt input/B129_stage1_normal_contact.feb --ramp-um 3.5 --max-pressure-mpa 5 --output-dir example
           test -s example/B129_contact_line_five_levels.png
           test -s example/B129_contact_line_levels.csv
           test -s example/B129_indentation_0p1um.gif
@@ -38,10 +39,10 @@ jobs:
           test -s example/B129_mesh_panels.png
           test -s example/B129_surface_evolution.png
           test -s example/B129_surface_evolution.csv
-          printf 'Source run: https://github.com/ViktorSari/sealFE/actions/runs/36324031328\nSource case: augmented K=5000 MPa\nOutput status: example draft\n' > example/README.txt
+          printf 'Source run: https://github.com/ViktorSari/sealFE/actions/runs/36332294094\nSource case: K=2000 MPa; penalty=0.40 MPa/um; 0.75 um mesh; both-side x rollers\nEvaluation range: 0-5 MPa; selected fields use nearest converged states\nGeometric overlap near 5 MPa: about 0.103-0.104 um; physical boundary assumption remains to be justified\n' > example/README.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: B129-K5000-example-outputs
+          name: B129-K2000-final-normal-contact-outputs
           path: example/
           if-no-files-found: error
           retention-days: 14
