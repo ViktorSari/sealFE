@@ -1,0 +1,89 @@
+name: R07 dense-peak chamfer contact pilot
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [codex/b129-contact-closure]
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      B129_SURFACE_DZ_UM: '0.75'
+      B129_X_SUBDIV: '1'
+      B129_CONTACT_PENALTY_MPA_PER_UM: '0.40'
+      B129_CONTACT_AUG_TOL: '0.01'
+      B129_CONTACT_MAX_AUG: '25'
+      B129_BULK_MODULUS_MPA: '2000.0'
+      B129_VOLUME_AUGMENT: '1'
+      B129_VOLUME_AUGTOL: '0.01'
+      B129_RUBBER_HEIGHT_UM: '100.0'
+      B129_MAX_INDENTATION_UM: '4.2'
+      B129_DISPLACEMENT_INCREMENT_UM: '0.05'
+      B129_INITIAL_GAP_UM: '-0.001'
+      B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
+      B129_SIDE_BC_MODE: both_sides
+      B129_SOLVER_DTOL: '0.01'
+      B129_SOLVER_ETOL: '0.01'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Generate measured R07 chamfer model
+        run: |
+          mkdir -p results
+          python - <<'PY'
+          from pathlib import Path
+          from studies import b129_mesh_sensitivity as mesh
+          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv')
+          mesh.main()
+          PY
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
+          env | grep '^B129_' | sort > results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; local x=0–200 um, original z retained.\n' >> results/case_settings.txt
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+      - name: Restore FEBio build cache
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+      - name: Configure FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
+      - name: Build FEBio
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        run: cmake --build .febio-build --target febio4 --parallel 2
+      - name: Run FEBio
+        id: solve
+        continue-on-error: true
+        run: |
+          cd models/b129_stage1
+          '${{ github.workspace }}/.febio-build/bin/febio4' -i B129_stage1_normal_contact.feb > '${{ github.workspace }}/results/febio_stdout.txt' 2>&1
+      - name: Extract converged states
+        if: always()
+        run: |
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name '*.xplt' -o -name '*.log' \) -exec cp {} results/ \; || true
+          echo 'solve_outcome=${{ steps.solve.outcome }}' >> results/case_settings.txt
+          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 4.2 --output-dir results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: R07_CH_dense_peaks-1284p5_1484p5um-contact-pilot
+          path: results/
+          if-no-files-found: error
+          retention-days: 14
