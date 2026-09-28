@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Controlled mesh variants for B129 publication convergence checks.
 
-This wrapper preserves the measured piecewise-linear B129 geometry and all
-reference physics. It only changes FE discretization:
+By default this wrapper preserves the measured piecewise-linear geometry and
+all reference physics. It changes FE discretization:
 - vertical rubber spacing in the first 6 um, and/or
 - subdivision of each measured 0.5 um profile segment.
 
 Subdividing x does not invent roughness; linear interpolation exactly preserves
 the reference piecewise-linear profile geometry.
+
+Optional Gaussian regularization changes the geometry and must be reported as
+a separate sensitivity case, never as the unmodified measured profile.
 """
 from __future__ import annotations
 
@@ -27,6 +30,19 @@ _ORIGINAL_LOAD_PROFILE = gm.load_profile
 
 def refined_profile(subdiv: int):
     x, z = _ORIGINAL_LOAD_PROFILE()
+    sigma = float(os.environ.get("B129_PROFILE_GAUSSIAN_SIGMA_SAMPLES", "0"))
+    if sigma < 0:
+        raise ValueError("Profile smoothing sigma must be nonnegative")
+    if sigma > 0:
+        radius = max(1, int(np.ceil(4 * sigma)))
+        offsets = np.arange(-radius, radius + 1)
+        weights = np.exp(-0.5 * (offsets / sigma) ** 2)
+        weights /= weights.sum()
+        smoothed = np.convolve(np.pad(z, radius, mode="edge"), weights, mode="valid")
+        print(f"Measured-profile regularization: sigma={sigma} samples; "
+              f"max |delta z|={np.max(np.abs(smoothed - z)):.6g} um; "
+              f"RMS delta z={np.sqrt(np.mean((smoothed - z)**2)):.6g} um")
+        z = smoothed
     if subdiv == 1:
         return x, z
     if subdiv < 1:
@@ -61,7 +77,10 @@ def main():
 
     gm.NEAR_CONTACT_LAYER_UM = surface_dz
     gm.RUBBER_Z_LEVELS_UM = z_levels(surface_dz, gm.RUBBER_HEIGHT_UM)
-    gm.load_profile = lambda: refined_profile(x_subdiv)
+    x_used, z_used = refined_profile(x_subdiv)
+    np.savetxt(gm.HERE / "used_profile.csv", np.column_stack([x_used, z_used]),
+               delimiter=",", header="x_um,z_um", comments="", fmt="%.9g")
+    gm.load_profile = lambda: (x_used, z_used)
 
     print(f"Mesh sensitivity wrapper: dz={surface_dz} um, x_subdiv={x_subdiv}")
     print(f"Rubber z levels: {gm.RUBBER_Z_LEVELS_UM.tolist()}")

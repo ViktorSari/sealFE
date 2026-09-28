@@ -66,8 +66,16 @@ CONTACT_PENALTY_MPA_PER_UM = env_float("B129_CONTACT_PENALTY_MPA_PER_UM", 0.30)
 CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
 CONTACT_AUG_TOL = env_float("B129_CONTACT_AUG_TOL", 0.01)
 CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
+CONTACT_FORMULATION = env_str("B129_CONTACT_FORMULATION", "sliding-elastic")
+CONTACT_ENFORCEMENT = env_str("B129_CONTACT_ENFORCEMENT", "AUGLAG")
+CONTACT_SMOOTH_AUG = env_int("B129_CONTACT_SMOOTH_AUG", 0)
+LINEAR_SOLVER = env_str("B129_LINEAR_SOLVER", "skyline")
+UNSYMMETRIC_CONTACT = env_int("B129_UNSYMMETRIC_CONTACT", 0)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
+SOLVER_LS_CHECK_JACOBIANS = env_int("B129_SOLVER_LS_CHECK_JACOBIANS", 0)
+SOLVER_LSMIN = env_float("B129_SOLVER_LSMIN", 0.001)
+SOLVER_LSITER = env_int("B129_SOLVER_LSITER", 10)
 SIDE_BC_MODE = env_str("B129_SIDE_BC_MODE", "both_sides")
 VOLUME_AUGMENT = env_int("B129_VOLUME_AUGMENT", 0)
 VOLUME_AUGTOL = env_float("B129_VOLUME_AUGTOL", 0.01)
@@ -189,8 +197,9 @@ def main():
                 dtol=SOLVER_DTOL,
                 etol=SOLVER_ETOL,
                 max_refs=100,
-                lsiter=10,
-                lsmin=0.001,
+                lsiter=SOLVER_LSITER,
+                lsmin=SOLVER_LSMIN,
+                ls_check_jacobians=SOLVER_LS_CHECK_JACOBIANS,
                 qn_method=feb.control.FullNewtonMethod(),
             ),
         )
@@ -406,7 +415,61 @@ def main():
     # pyFEBio currently restricts the LinearSolver enum to MKL solvers.
     # CI intentionally builds FEBio without MKL, so select built-in skyline.
     xml = OUTPUT_FEB.read_text(encoding="utf-8")
-    xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
+    if LINEAR_SOLVER == "skyline":
+        xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
+    elif LINEAR_SOLVER == "boomeramg":
+        xml = xml.replace(
+            '<linear_solver type="pardiso"/>',
+            '<linear_solver type="boomeramg"><max_iter>500</max_iter>'
+            '<tol>1e-8</tol><print_level>0</print_level></linear_solver>',
+        )
+    elif LINEAR_SOLVER == "pardiso":
+        pass  # pyFEBio's native MKL-backed direct solver selection
+    else:
+        raise ValueError(f"Unsupported linear solver: {LINEAR_SOLVER}")
+
+    if UNSYMMETRIC_CONTACT:
+        if LINEAR_SOLVER == "skyline":
+            raise ValueError("Skyline cannot solve unsymmetric matrices")
+        xml = xml.replace(
+            '<symmetric_stiffness>symmetric</symmetric_stiffness>',
+            '<symmetric_stiffness>0</symmetric_stiffness>', 1,
+        )
+        xml = xml.replace(
+            '<symmetric_stiffness>1</symmetric_stiffness>',
+            '<symmetric_stiffness>0</symmetric_stiffness>', 1,
+        )
+
+    if CONTACT_FORMULATION == "sliding-facet-on-facet":
+        # A symmetric, closest-point contact formulation for a controlled
+        # numerical comparison on the same measured surface and rubber mesh.
+        contact_xml = (
+            '<contact name="rough_normal_contact" surface_pair="rough_contact" '
+            'type="sliding-facet-on-facet">'
+            '<laugon>1</laugon><two_pass>0</two_pass>'
+            f'<penalty>{CONTACT_PENALTY_MPA_PER_UM:.9g}</penalty>'
+            '<auto_penalty>0</auto_penalty>'
+            f'<tolerance>{CONTACT_AUG_TOL:.9g}</tolerance>'
+            f'<maxaug>{CONTACT_MAX_AUG}</maxaug>'
+            f'<search_radius>{CONTACT_SEARCH_RADIUS_UM:.9g}</search_radius>'
+            '<seg_up>5</seg_up>'
+            '</contact>'
+        )
+        xml, count = re.subn(
+            r'<contact name="rough_normal_contact"[^>]*>.*?</contact>',
+            contact_xml, xml, count=1, flags=re.DOTALL,
+        )
+        if count != 1:
+            raise RuntimeError("Could not replace contact interface")
+    elif CONTACT_FORMULATION != "sliding-elastic":
+        raise ValueError(f"Unsupported contact formulation: {CONTACT_FORMULATION}")
+
+    if CONTACT_ENFORCEMENT not in ("AUGLAG", "PENALTY"):
+        raise ValueError(f"Unsupported contact enforcement: {CONTACT_ENFORCEMENT}")
+    if CONTACT_ENFORCEMENT == "PENALTY":
+        xml = xml.replace('<laugon>AUGLAG</laugon>', '<laugon>0</laugon>', 1)
+    if CONTACT_SMOOTH_AUG:
+        xml = xml.replace('<smooth_aug>0</smooth_aug>', '<smooth_aug>1</smooth_aug>', 1)
 
     # Optional augmented-Lagrangian enforcement of the volumetric constraint
     # for the three-field uncoupled rubber domain. This is distinct from
@@ -439,12 +502,14 @@ def main():
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
+    print(f"Contact formulation: {CONTACT_FORMULATION}")
+    print(f"Contact enforcement: {CONTACT_ENFORCEMENT}; smooth_aug={CONTACT_SMOOTH_AUG}")
     print(f"Contact augmentation: tolerance={CONTACT_AUG_TOL}, maxaug={CONTACT_MAX_AUG}")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
-    print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}")
+    print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}; line search: check_jacobians={SOLVER_LS_CHECK_JACOBIANS}, lsmin={SOLVER_LSMIN}, lsiter={SOLVER_LSITER}")
     print(f"Volumetric augmentation: {bool(VOLUME_AUGMENT)}; atol={VOLUME_AUGTOL}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
-    print("Linear solver: skyline")
+    print(f"Linear solver: {LINEAR_SOLVER}; unsymmetric contact: {bool(UNSYMMETRIC_CONTACT)}")
 
 
 if __name__ == "__main__":

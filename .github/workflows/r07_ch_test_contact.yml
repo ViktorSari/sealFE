@@ -1,0 +1,130 @@
+name: R07 dense-peak chamfer contact pilot
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [codex/b129-contact-closure]
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    name: pilot ${{ matrix.case_id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case_id: full_contact_p0015_stop_3p14um
+            side: both_sides
+            bulk: '2000.0'
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.015'
+            step: '0.05'
+            augtol: '0.01'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0'
+    env:
+      B129_SURFACE_DZ_UM: ${{ matrix.dz }}
+      B129_X_SUBDIV: ${{ matrix.x_subdiv }}
+      B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
+      B129_CONTACT_AUG_TOL: ${{ matrix.augtol }}
+      B129_CONTACT_MAX_AUG: '50'
+      B129_BULK_MODULUS_MPA: ${{ matrix.bulk }}
+      B129_VOLUME_AUGMENT: '1'
+      B129_VOLUME_AUGTOL: '0.01'
+      B129_RUBBER_HEIGHT_UM: '100.0'
+      B129_MAX_INDENTATION_UM: '3.14'
+      B129_DISPLACEMENT_INCREMENT_UM: ${{ matrix.step }}
+      B129_INITIAL_GAP_UM: '-0.001'
+      B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
+      B129_SIDE_BC_MODE: ${{ matrix.side }}
+      B129_SOLVER_DTOL: '0.01'
+      B129_SOLVER_ETOL: '0.01'
+      B129_SOLVER_LS_CHECK_JACOBIANS: '0'
+      B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
+      B129_SOLVER_LSITER: ${{ matrix.lsiter }}
+      B129_CONTACT_FORMULATION: sliding-elastic
+      B129_CONTACT_ENFORCEMENT: ${{ matrix.enforcement }}
+      B129_CONTACT_SMOOTH_AUG: ${{ matrix.smooth_aug }}
+      B129_PROFILE_GAUSSIAN_SIGMA_SAMPLES: ${{ matrix.sigma }}
+      B129_LINEAR_SOLVER: skyline
+      B129_UNSYMMETRIC_CONTACT: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Generate measured R07 chamfer model
+        run: |
+          mkdir -p results
+          python - <<'PY'
+          from pathlib import Path
+          from studies import b129_mesh_sensitivity as mesh
+          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv')
+          mesh.main()
+          PY
+          test -s models/b129_stage1/B129_stage1_normal_contact.feb
+          cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
+          cp models/b129_stage1/used_profile.csv results/
+          env | grep '^B129_' | sort > results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; stop at full projected contact; report contact overclosure.\n' >> results/case_settings.txt
+      - name: Clone FEBio 4.13
+        run: |
+          git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
+          sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+      - name: Install MKL runtime for cached FEBio
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libmkl-full-dev libomp-18-dev
+      - name: Restore tested FEBio build
+        id: febio-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-mkl-negjac60-v1
+      - name: Verify cached FEBio
+        run: test -x .febio-build/bin/febio4
+      - name: Run FEBio
+        id: solve
+        continue-on-error: true
+        run: |
+          cd models/b129_stage1
+          '${{ github.workspace }}/.febio-build/bin/febio4' -i B129_stage1_normal_contact.feb > '${{ github.workspace }}/results/febio_stdout.txt' 2>&1
+      - name: Extract converged states
+        if: always()
+        run: |
+          cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
+          find models/b129_stage1 -maxdepth 1 -type f \( -name '*.xplt' -o -name '*.log' \) -exec cp {} results/ \; || true
+          echo 'solve_outcome=${{ steps.solve.outcome }}' >> results/case_settings.txt
+          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 3.14 --output-dir results
+      - name: Verify full projected contact at successful endpoint
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import math
+          data = dict(line.strip().split('=', 1) for line in Path('results/B129_final_summary.txt').read_text().splitlines() if '=' in line)
+          settings = Path('results/case_settings.txt').read_text()
+          assert 'solve_outcome=success' in settings, 'FEBio did not complete the 3.14 um ramp'
+          assert math.isclose(float(data['projected_contact_fraction']), 1.0, abs_tol=1e-12), 'full contact not reached'
+          assert float(data['last_converged_nominal_pressure_MPa']) > 0
+          assert abs(float(data['pressure_reaction_difference_pct'])) < 1
+          assert float(data['J_min']) > 0
+          print('Full projected contact confirmed; geometric overlap remains a reported limitation.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: R07_CH_dense_peaks-${{ matrix.case_id }}
+          path: results/
+          if-no-files-found: error
+          retention-days: 14
