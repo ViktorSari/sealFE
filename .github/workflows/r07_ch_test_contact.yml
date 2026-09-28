@@ -17,21 +17,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: x2_mesh075_p040_step005
+          - case_id: jaccheck_mesh075
             dz: '0.75'
-            x_subdiv: '2'
+            x_subdiv: '1'
             penalty: '0.40'
             step: '0.05'
-          - case_id: x2_mesh0375_p040_step005
-            dz: '0.375'
-            x_subdiv: '2'
+            lsmin: '0.001'
+            lsiter: '10'
+          - case_id: jaccheck_deepsearch_mesh075
+            dz: '0.75'
+            x_subdiv: '1'
             penalty: '0.40'
             step: '0.05'
-          - case_id: x2_mesh075_p040_step0025
-            dz: '0.75'
-            x_subdiv: '2'
-            penalty: '0.40'
-            step: '0.025'
+            lsmin: '0.00001'
+            lsiter: '25'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
@@ -49,6 +48,9 @@ jobs:
       B129_SIDE_BC_MODE: both_sides
       B129_SOLVER_DTOL: '0.01'
       B129_SOLVER_ETOL: '0.01'
+      B129_SOLVER_LS_CHECK_JACOBIANS: '1'
+      B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
+      B129_SOLVER_LSITER: ${{ matrix.lsiter }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

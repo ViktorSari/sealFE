@@ -68,6 +68,9 @@ CONTACT_AUG_TOL = env_float("B129_CONTACT_AUG_TOL", 0.01)
 CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
+SOLVER_LS_CHECK_JACOBIANS = env_int("B129_SOLVER_LS_CHECK_JACOBIANS", 0)
+SOLVER_LSMIN = env_float("B129_SOLVER_LSMIN", 0.001)
+SOLVER_LSITER = env_int("B129_SOLVER_LSITER", 10)
 SIDE_BC_MODE = env_str("B129_SIDE_BC_MODE", "both_sides")
 VOLUME_AUGMENT = env_int("B129_VOLUME_AUGMENT", 0)
 VOLUME_AUGTOL = env_float("B129_VOLUME_AUGTOL", 0.01)
@@ -189,8 +192,9 @@ def main():
                 dtol=SOLVER_DTOL,
                 etol=SOLVER_ETOL,
                 max_refs=100,
-                lsiter=10,
-                lsmin=0.001,
+                lsiter=SOLVER_LSITER,
+                lsmin=SOLVER_LSMIN,
+                ls_check_jacobians=SOLVER_LS_CHECK_JACOBIANS,
                 qn_method=feb.control.FullNewtonMethod(),
             ),
         )
@@ -441,7 +445,7 @@ def main():
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
     print(f"Contact augmentation: tolerance={CONTACT_AUG_TOL}, maxaug={CONTACT_MAX_AUG}")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
-    print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}")
+    print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}; line search: check_jacobians={SOLVER_LS_CHECK_JACOBIANS}, lsmin={SOLVER_LSMIN}, lsiter={SOLVER_LSITER}")
     print(f"Volumetric augmentation: {bool(VOLUME_AUGMENT)}; atol={VOLUME_AUGTOL}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
     print("Linear solver: skyline")
