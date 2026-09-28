@@ -119,7 +119,7 @@ jobs:
           sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
       - name: Configure FEBio
         run: |
-          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF
+          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS=-fopenmp -DCMAKE_SHARED_LINKER_FLAGS=-fopenmp
       - name: Build FEBio
         run: cmake --build .febio-build --target febio4 --parallel 2
       - name: Run FEBio
