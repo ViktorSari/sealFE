@@ -96,7 +96,7 @@ jobs:
           assert s.count('MPI_Finalize()') == 2
           p.write_text(s)
           with Path('.febio-src/CMakeLists.txt').open('a') as cmake:
-              cmake.write('\ntarget_link_libraries(febio4 mpi)\n')
+              cmake.write('\ntarget_link_libraries(febio4 mpi_cxx mpi)\n')
           PY
       - name: Restore FEBio build cache
         id: febio-cache
