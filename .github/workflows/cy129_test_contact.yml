@@ -2,8 +2,8 @@ name: CY129 representative cylindrical contact pilot
 
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/cy129-test]
+  pull_request:
+    branches: [codex/b129-contact-closure]
     paths:
       - '.github/workflows/cy129_test_contact.yml'
 
