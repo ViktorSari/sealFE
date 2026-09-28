@@ -69,6 +69,8 @@ CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
 CONTACT_FORMULATION = env_str("B129_CONTACT_FORMULATION", "sliding-elastic")
 CONTACT_ENFORCEMENT = env_str("B129_CONTACT_ENFORCEMENT", "AUGLAG")
 CONTACT_SMOOTH_AUG = env_int("B129_CONTACT_SMOOTH_AUG", 0)
+LINEAR_SOLVER = env_str("B129_LINEAR_SOLVER", "skyline")
+UNSYMMETRIC_CONTACT = env_int("B129_UNSYMMETRIC_CONTACT", 0)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
 SOLVER_LS_CHECK_JACOBIANS = env_int("B129_SOLVER_LS_CHECK_JACOBIANS", 0)
@@ -413,7 +415,28 @@ def main():
     # pyFEBio currently restricts the LinearSolver enum to MKL solvers.
     # CI intentionally builds FEBio without MKL, so select built-in skyline.
     xml = OUTPUT_FEB.read_text(encoding="utf-8")
-    xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
+    if LINEAR_SOLVER == "skyline":
+        xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
+    elif LINEAR_SOLVER == "boomeramg":
+        xml = xml.replace(
+            '<linear_solver type="pardiso"/>',
+            '<linear_solver type="boomeramg"><max_iter>500</max_iter>'
+            '<tol>1e-8</tol><print_level>0</print_level></linear_solver>',
+        )
+    else:
+        raise ValueError(f"Unsupported linear solver: {LINEAR_SOLVER}")
+
+    if UNSYMMETRIC_CONTACT:
+        if LINEAR_SOLVER == "skyline":
+            raise ValueError("Skyline cannot solve unsymmetric matrices")
+        xml = xml.replace(
+            '<symmetric_stiffness>symmetric</symmetric_stiffness>',
+            '<symmetric_stiffness>0</symmetric_stiffness>', 1,
+        )
+        xml = xml.replace(
+            '<symmetric_stiffness>1</symmetric_stiffness>',
+            '<symmetric_stiffness>0</symmetric_stiffness>', 1,
+        )
 
     if CONTACT_FORMULATION == "sliding-facet-on-facet":
         # A symmetric, closest-point contact formulation for a controlled
@@ -484,7 +507,7 @@ def main():
     print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}; line search: check_jacobians={SOLVER_LS_CHECK_JACOBIANS}, lsmin={SOLVER_LSMIN}, lsiter={SOLVER_LSITER}")
     print(f"Volumetric augmentation: {bool(VOLUME_AUGMENT)}; atol={VOLUME_AUGTOL}")
     print("Nominal pressure will be recovered from summed top-surface reaction force.")
-    print("Linear solver: skyline")
+    print(f"Linear solver: {LINEAR_SOLVER}; unsymmetric contact: {bool(UNSYMMETRIC_CONTACT)}")
 
 
 if __name__ == "__main__":

@@ -17,20 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: alt13_raw_p040
+          - case_id: original_unsymmetric_hypre_p040
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
-            step: '0.05'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: alt13_raw_p030
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.30'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
@@ -61,6 +51,8 @@ jobs:
       B129_CONTACT_ENFORCEMENT: ${{ matrix.enforcement }}
       B129_CONTACT_SMOOTH_AUG: ${{ matrix.smooth_aug }}
       B129_PROFILE_GAUSSIAN_SIGMA_SAMPLES: ${{ matrix.sigma }}
+      B129_LINEAR_SOLVER: boomeramg
+      B129_UNSYMMETRIC_CONTACT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -69,20 +61,24 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Install HYPRE for unsymmetric solve
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhypre-dev
       - name: Generate measured R07 chamfer model
         run: |
           mkdir -p results
           python - <<'PY'
           from pathlib import Path
           from studies import b129_mesh_sensitivity as mesh
-          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1351p5_1551p5um_profile.csv')
+          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv')
           mesh.main()
           PY
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
-          cp models/b129_stage1/07R11000_1351p5_1551p5um_profile.csv results/
+          cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, alternate measured 1351.5–1551.5 um; 13 peaks at prominence 0.3 um in inner 190 um; local x=0–200 um, original z retained.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; unsymmetric contact stiffness.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
@@ -92,11 +88,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .febio-build
-          key: febio-4.13-ubuntu-x64-no-external-solvers-negjac60-v1
+          key: febio-4.13-ubuntu-x64-hypre-negjac60-v1
       - name: Configure FEBio
         if: steps.febio-cache.outputs.cache-hit != 'true'
         run: |
-          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=OFF -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
+          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=ON -DHYPRE_INC=/usr/include/hypre -DHYPRE_LIB=/usr/lib/x86_64-linux-gnu/libHYPRE.so -DEXTRA_INC=/usr/lib/x86_64-linux-gnu/openmpi/include -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
       - name: Build FEBio
         if: steps.febio-cache.outputs.cache-hit != 'true'
         run: cmake --build .febio-build --target febio4 --parallel 2
