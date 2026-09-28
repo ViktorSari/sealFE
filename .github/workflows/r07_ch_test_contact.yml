@@ -17,51 +17,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: x2_p005
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '2'
-            penalty: '0.05'
-            step: '0.05'
-            augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: x2_p0075
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '2'
-            penalty: '0.075'
-            step: '0.05'
-            augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: x2_dz15_p005
-            side: both_sides
-            bulk: '2000.0'
-            dz: '1.5'
-            x_subdiv: '2'
-            penalty: '0.05'
-            step: '0.05'
-            augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: x1_p004
+          - case_id: x1_p0035
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.04'
+            penalty: '0.035'
+            step: '0.05'
+            augtol: '0.01'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0'
+          - case_id: x1_p003
+            side: both_sides
+            bulk: '2000.0'
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.03'
+            step: '0.05'
+            augtol: '0.01'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0'
+          - case_id: x1_p0025
+            side: both_sides
+            bulk: '2000.0'
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.025'
             step: '0.05'
             augtol: '0.01'
             lsmin: '0.001'
@@ -116,7 +103,7 @@ jobs:
           cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; piecewise-linear profile subdivision and low-penalty contact.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; low-penalty augmented contact near projected saturation.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
