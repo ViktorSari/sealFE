@@ -2,55 +2,22 @@
 
 Finite-element models for sealing tribology.
 
-## B129 Stage 1 — normal rough-contact baseline
+## B129 Stage 1: normal rough contact
 
-The first model uses the measured B129 aluminium profile and a finite-strain rubber body in FEBio.
+The model presses a 100 µm thick Mooney–Rivlin rubber layer against a rigid measured B129 aluminium profile. The 200 µm profile window is sampled at 0.5 µm and extruded by 1 µm with plane-strain displacement constraints. The selected fit is `C10=0.348 MPa`, `C01=0.886 MPa`. Volume augmentation is active; `K=2000 MPa` is an adopted modelling assumption, not a measured material property. Nominal pressure is recovered from the top reaction. See [numerical closure](B129_CONTACT_CLOSURE_2026-09-27.md) for the sensitivity results and run artifacts.
 
-### Current setup
+| Final numerical setting | Value |
+| --- | ---: |
+| Near-contact layer | 0.75 µm |
+| Sliding-elastic normal-contact penalty | 0.40 MPa/µm |
+| Contact augmentation tolerance / max augmentations | 0.01 / 25 |
+| External indentation increment | 0.05 µm |
+| Target nominal-pressure range | 0–5 MPa |
+| Lateral rubber boundary | `ux=0` on both x edges |
+| Interface friction coefficient | 0 (normal-contact stage) |
 
-- profile: B129 / `CA129_02.TXT`, selected 200 µm window (400–600 µm in the original trace)
-- profile pitch: 0.5 µm
-- aluminium: rigid rough surface
-- rubber: uncoupled Mooney–Rivlin
-  - `C10 = 0.20 MPa`
-  - `C01 = 0.65 MPa`
-  - `K = 850 MPa` **temporary placeholder** until the measured compressibility / D parameter is supplied
-- rubber depth: 100 µm
-- nominal pressure ramp: 0 → 5 MPa
-- contact: FEBio `sliding-elastic`, augmented Lagrange, two-pass
-- prescribed Coulomb friction coefficient: 0
+The 0.40 penalty crosses 5 MPa on 1.5, 0.75 and 0.375 µm near-contact meshes. At nearby stored states around 5 MPa, the 0.75 and 0.375 µm meshes differ by at most 0.63% in the reported geometric overlap, facet contact-pressure peak, von Mises maximum and principal-strain maximum. The reconstructed geometric overlap approaches **0.103 µm**, rather than zero. Local fields are converged numerically for this boundary assumption; report that overlap explicitly.
 
-The zero interfacial Coulomb coefficient is deliberate: the final friction model is intended to obtain tangential resistance from physical contributions (viscoelastic hysteresis + adhesion, and any additional justified mechanism), not from an imposed global µ.
+The two fixed x edges are a consequential physical assumption for the isolated 200 µm window. The alternative one-sided roller case changed the deformation pattern and stopped below 0.22 MPa. That failure does **not** validate the two-sided constraint. Before interpreting absolute local contact fields as physical predictions for the assembly, establish from the actual rubber carrier and neighbouring material whether the two edges are laterally restrained. State an application-specific acceptable geometric-overlap criterion; current mesh convergence alone does not establish it.
 
-### Repository layout
-
-```
-models/b129_stage1/
-  B129_400_600um_profile.csv
-  generate_model.py
-
-.github/workflows/
-  run_b129_fem.yml
-```
-
-### GitHub Actions
-
-The workflow:
-
-1. installs Python and pinned pyFEBio,
-2. generates `B129_stage1_normal_contact.feb`,
-3. builds FEBio 4.13 from the official source with optional third-party solvers disabled,
-4. uses FEBio's built-in `skyline` linear solver,
-5. runs the nonlinear contact model,
-6. uploads the FEBio input, log and `.xplt` output as an Actions artifact.
-
-The source build is intentionally minimal so the repository does not depend on Intel MKL.
-
-### Planned sequence
-
-1. make the normal-contact model converge and mesh-check it,
-2. compare 100 µm and 200 µm rubber depth,
-3. refine the contact mesh if required,
-4. add measured Prony terms and tangential sliding for hysteresis,
-5. add an adhesive interface/contact-potential model,
-6. extract the resulting tangential force rather than prescribe a macroscopic friction coefficient.
+The output workflow renders the selected `K=2000 MPa`, penalty-0.40 run only through 5 MPa, using the nearest stored converged states for field plots. The earlier `K=5000 MPa` example reaching about 12 MPa is superseded for this evaluation. The planned tangential sliding, time-dependent response and any adhesive interaction are separate stages.
