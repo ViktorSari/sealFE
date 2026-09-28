@@ -73,10 +73,9 @@ def true_contact_length(xz, cp, al_x, al_z, threshold=1e-8):
     return float(sum(arc(b)-arc(a) for a, b in merged)), float(cumulative[-1])
 
 
-def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pressure):
-    max_pressure = pressure[id(states[-1])]
-    # More resolution during the first stages of contact; include exact final.
-    targets = max_pressure*np.array([.01, .04, .12, .35, 1.])
+def save_contact_plot(path, csv_path, states, xyz, bottom_conn, al_x, al_z, pressure, target_pressure):
+    # Nominal load levels within the declared evaluation range.
+    targets = target_pressure*np.array([.01, .04, .12, .35, 1.])
     selected = [min(states, key=lambda s: abs(pressure[id(s)]-p)) for p in targets]
     maximum = max(float(np.max(s["contact_pressure_raw"])) for s in selected)
     fig, axes = plt.subplots(10, 1, figsize=(16, 15), sharey=True)
@@ -214,9 +213,9 @@ def save_mesh(path, xyz, rubber_conn, bottom_conn, al_x, al_z, states, pressure)
     return stats
 
 
-def save_fields(out,xyz,rubber_conn,bottom_conn,states,pressure,al_x,al_z):
-    selected=[min(states,key=lambda s:abs(s["indentation_um"]-u))
-              for u in np.linspace(.2,1,5)*states[-1]["indentation_um"]]
+def save_fields(out,xyz,rubber_conn,bottom_conn,states,pressure,al_x,al_z,target_pressure):
+    selected=[min(states,key=lambda s:abs(pressure[id(s)]-p))
+              for p in np.array([.01,.04,.12,.35,1.])*target_pressure]
     for label,fn,cmap in [
         ("von_Mises",lambda s:pp.von_mises(s["stress"]),"viridis"),
         ("minus_sigma_zz",lambda s:-s["stress"][:,2],"magma"),
@@ -291,6 +290,7 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("xplt",type=Path);p.add_argument("feb",type=Path)
     p.add_argument("--ramp-um",type=float,default=4.2);p.add_argument("--output-dir",type=Path,required=True)
+    p.add_argument("--max-pressure-mpa",type=float,default=5.0)
     args=p.parse_args();out=args.output_dir;out.mkdir(parents=True,exist_ok=True)
     xyz,rubber_conn,bottom_conn,_,al_x,al_z=pp.parse_feb_mesh(args.feb)
     root=ET.parse(args.feb).getroot()
@@ -301,8 +301,18 @@ def main():
     states=pp.parse_states(args.xplt,args.ramp_um,bottom_conn)
     width=float(al_x[-1]-al_x[0])
     pressure={id(st):nominal_pressure(st,xyz,rubber_conn,width) for st in states}
+    if max(pressure.values()) < args.max_pressure_mpa:
+        raise ValueError("No converged state reaches the requested maximum nominal pressure")
+    final_index=min(range(len(states)),key=lambda i:abs(pressure[id(states[i])]-args.max_pressure_mpa))
+    states=states[:final_index+1]
+    contact=root.find("./Contact/contact")
+    if contact is None:
+        raise ValueError("Contact definition missing from FEB file")
+    penalty=float(contact.findtext("penalty"))
+    tolerance=float(contact.findtext("tolerance"))
+    maxaug=int(contact.findtext("maxaug"))
     save_contact_plot(out/"B129_contact_line_five_levels.png",out/"B129_contact_line_levels.csv",
-                      states,xyz,bottom_conn,al_x,al_z,pressure)
+                      states,xyz,bottom_conn,al_x,al_z,pressure,args.max_pressure_mpa)
     save_contact_curve(out/"B129_contact_length_ratio.png",out/"B129_contact_length_ratio.csv",states,xyz,bottom_conn,al_x,al_z,pressure)
     save_surface_history(out/"B129_surface_evolution.png",out/"B129_surface_evolution.csv",states,xyz,bottom_conn,al_x,al_z)
     stats=save_mesh(out/"B129_mesh_panels.png",xyz,rubber_conn,bottom_conn,al_x,al_z,states,pressure)
@@ -318,11 +328,13 @@ def main():
             ("rubber_y","uy=0","boundary condition"),
             ("rubber_top_z","prescribed displacement","boundary condition"),
             ("rigid_Al","fully fixed","boundary condition"),
-            ("contact_penalty_MPa_per_um",0.30,"numerical contact parameter"),
+            ("contact_penalty_MPa_per_um",penalty,"numerical contact parameter"),
+            ("contact_augmentation_tolerance",tolerance,"from FEB contact"),
+            ("contact_max_augmentations",maxaug,"from FEB contact"),
             ("contact_method","one-pass sliding elastic, augmented Lagrange","friction coefficient 0"),
-            ("max_external_increment_um",0.1,"adaptive cutbacks allowed"),
+            ("evaluation_pressure_limit_MPa",args.max_pressure_mpa,"target; last stored state is nearest"),
         ]:w.writerow([k,v,status])
-    save_fields(out,xyz,rubber_conn,bottom_conn,states,pressure,al_x,al_z)
+    save_fields(out,xyz,rubber_conn,bottom_conn,states,pressure,al_x,al_z,args.max_pressure_mpa)
     save_gif(out/"B129_indentation_0p1um.gif",states,xyz,bottom_conn,al_x,al_z)
     print("Wrote",len(list(out.iterdir())),"example files; last converged",states[-1]["indentation_um"],pressure[id(states[-1])])
 
