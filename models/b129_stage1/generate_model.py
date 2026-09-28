@@ -423,6 +423,8 @@ def main():
             '<linear_solver type="boomeramg"><max_iter>500</max_iter>'
             '<tol>1e-8</tol><print_level>0</print_level></linear_solver>',
         )
+    elif LINEAR_SOLVER == "pardiso":
+        pass  # pyFEBio's native MKL-backed direct solver selection
     else:
         raise ValueError(f"Unsupported linear solver: {LINEAR_SOLVER}")
 
