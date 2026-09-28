@@ -1,0 +1,48 @@
+name: B129 penetration DoE compact diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/b129-penetration-doe]
+    paths: ['.github/workflows/b129_doe_compact.yml']
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download numerical DoE cases
+        uses: actions/download-artifact@v4
+        with:
+          pattern: B129-penetration-doe-*
+          path: input/numerical
+          merge-multiple: false
+          run-id: 36397081948
+          github-token: ${{ github.token }}
+      - name: Download lateral-continuation cases
+        uses: actions/download-artifact@v4
+        with:
+          pattern: B129-lateral-continuation-*
+          path: input/lateral
+          merge-multiple: false
+          run-id: 36397671911
+          github-token: ${{ github.token }}
+      - name: Collect CSV and solver summary
+        run: |
+          mkdir -p compact
+          for case_dir in input/numerical/* input/lateral/*; do
+            case_name="${case_dir##*/}"
+            mkdir -p "compact/$case_name"
+            cp "$case_dir"/*.csv "$case_dir"/*summary.txt "$case_dir"/case_settings.txt "compact/$case_name/"
+            tail -n 100 "$case_dir"/B129_stage1_normal_contact.log > "compact/$case_name/solver_log_tail.txt"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: B129-penetration-doe-compact
+          path: compact/
+          if-no-files-found: error
+          retention-days: 14
