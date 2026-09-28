@@ -17,60 +17,60 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: coarse15_k2000
+          - case_id: aug_p005
             side: both_sides
             bulk: '2000.0'
-            dz: '1.5'
+            dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.05'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
             sigma: '0'
-          - case_id: coarse30_k2000
+          - case_id: aug_p010
             side: both_sides
             bulk: '2000.0'
-            dz: '3.0'
+            dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.10'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
             sigma: '0'
-          - case_id: coarse15_k850
+          - case_id: aug_p020
             side: both_sides
-            bulk: '850.0'
-            dz: '1.5'
+            bulk: '2000.0'
+            dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.20'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
             sigma: '0'
-          - case_id: coarse30_k850
+          - case_id: aug_p010_smooth
             side: both_sides
-            bulk: '850.0'
-            dz: '3.0'
+            bulk: '2000.0'
+            dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.10'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
-            smooth_aug: '0'
+            smooth_aug: '1'
             sigma: '0'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
       B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
       B129_CONTACT_AUG_TOL: '0.01'
-      B129_CONTACT_MAX_AUG: '25'
+      B129_CONTACT_MAX_AUG: '50'
       B129_BULK_MODULUS_MPA: ${{ matrix.bulk }}
       B129_VOLUME_AUGMENT: '1'
       B129_VOLUME_AUGTOL: '0.01'
@@ -112,7 +112,7 @@ jobs:
           cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; near-surface thickness and bulk sensitivity with symmetric stiffness.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; augmented contact penalty sensitivity with symmetric stiffness.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
