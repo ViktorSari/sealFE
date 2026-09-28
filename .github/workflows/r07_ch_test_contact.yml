@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: original_unsymmetric_mkl_p040
+          - case_id: original_symmetric_mkl_control_p040
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
@@ -52,7 +52,7 @@ jobs:
       B129_CONTACT_SMOOTH_AUG: ${{ matrix.smooth_aug }}
       B129_PROFILE_GAUSSIAN_SIGMA_SAMPLES: ${{ matrix.sigma }}
       B129_LINEAR_SOLVER: pardiso
-      B129_UNSYMMETRIC_CONTACT: '1'
+      B129_UNSYMMETRIC_CONTACT: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
