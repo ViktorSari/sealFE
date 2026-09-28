@@ -17,38 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: x1_p002
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.02'
-            step: '0.05'
-            augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: x1_p0015
+          - case_id: full_contact_p0015_stop_3p10um
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.015'
-            step: '0.05'
-            augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: x1_p001
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.01'
             step: '0.05'
             augtol: '0.01'
             lsmin: '0.001'
@@ -66,7 +40,7 @@ jobs:
       B129_VOLUME_AUGMENT: '1'
       B129_VOLUME_AUGTOL: '0.01'
       B129_RUBBER_HEIGHT_UM: '100.0'
-      B129_MAX_INDENTATION_UM: '6.0'
+      B129_MAX_INDENTATION_UM: '3.10'
       B129_DISPLACEMENT_INCREMENT_UM: ${{ matrix.step }}
       B129_INITIAL_GAP_UM: '-0.001'
       B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
@@ -103,7 +77,7 @@ jobs:
           cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; augmented contact sweep to full projected saturation.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; stop at full projected contact; report contact overclosure.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
@@ -132,7 +106,21 @@ jobs:
           cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
           find models/b129_stage1 -maxdepth 1 -type f \( -name '*.xplt' -o -name '*.log' \) -exec cp {} results/ \; || true
           echo 'solve_outcome=${{ steps.solve.outcome }}' >> results/case_settings.txt
-          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 6.0 --output-dir results
+          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 3.10 --output-dir results
+      - name: Verify full projected contact at successful endpoint
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import math
+          data = dict(line.strip().split('=', 1) for line in Path('results/B129_final_summary.txt').read_text().splitlines() if '=' in line)
+          settings = Path('results/case_settings.txt').read_text()
+          assert 'solve_outcome=success' in settings, 'FEBio did not complete the 3.10 um ramp'
+          assert math.isclose(float(data['projected_contact_fraction']), 1.0, abs_tol=1e-12), 'full contact not reached'
+          assert float(data['last_converged_nominal_pressure_MPa']) > 0
+          assert abs(float(data['pressure_reaction_difference_pct'])) < 1
+          assert float(data['J_min']) > 0
+          print('Full projected contact confirmed; geometric overlap remains a reported limitation.')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
