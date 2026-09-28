@@ -66,6 +66,7 @@ CONTACT_PENALTY_MPA_PER_UM = env_float("B129_CONTACT_PENALTY_MPA_PER_UM", 0.30)
 CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
 CONTACT_AUG_TOL = env_float("B129_CONTACT_AUG_TOL", 0.01)
 CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
+CONTACT_FORMULATION = env_str("B129_CONTACT_FORMULATION", "sliding-elastic")
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
 SOLVER_LS_CHECK_JACOBIANS = env_int("B129_SOLVER_LS_CHECK_JACOBIANS", 0)
@@ -412,6 +413,30 @@ def main():
     xml = OUTPUT_FEB.read_text(encoding="utf-8")
     xml = xml.replace('linear_solver type="pardiso"', 'linear_solver type="skyline"')
 
+    if CONTACT_FORMULATION == "sliding-facet-on-facet":
+        # A symmetric, closest-point contact formulation for a controlled
+        # numerical comparison on the same measured surface and rubber mesh.
+        contact_xml = (
+            '<contact name="rough_normal_contact" surface_pair="rough_contact" '
+            'type="sliding-facet-on-facet">'
+            '<laugon>1</laugon><two_pass>0</two_pass>'
+            f'<penalty>{CONTACT_PENALTY_MPA_PER_UM:.9g}</penalty>'
+            '<auto_penalty>0</auto_penalty>'
+            f'<tolerance>{CONTACT_AUG_TOL:.9g}</tolerance>'
+            f'<maxaug>{CONTACT_MAX_AUG}</maxaug>'
+            f'<search_radius>{CONTACT_SEARCH_RADIUS_UM:.9g}</search_radius>'
+            '<seg_up>5</seg_up>'
+            '</contact>'
+        )
+        xml, count = re.subn(
+            r'<contact name="rough_normal_contact"[^>]*>.*?</contact>',
+            contact_xml, xml, count=1, flags=re.DOTALL,
+        )
+        if count != 1:
+            raise RuntimeError("Could not replace contact interface")
+    elif CONTACT_FORMULATION != "sliding-elastic":
+        raise ValueError(f"Unsupported contact formulation: {CONTACT_FORMULATION}")
+
     # Optional augmented-Lagrangian enforcement of the volumetric constraint
     # for the three-field uncoupled rubber domain. This is distinct from
     # augmented-Lagrangian contact. pyFEBio writes SolidDomain as a self-closing
@@ -443,6 +468,7 @@ def main():
     print(f"Displacement ramp: 0 -> {-MAX_INDENTATION_UM} um in {DISPLACEMENT_INCREMENT_UM} um increments")
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
+    print(f"Contact formulation: {CONTACT_FORMULATION}")
     print(f"Contact augmentation: tolerance={CONTACT_AUG_TOL}, maxaug={CONTACT_MAX_AUG}")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
     print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}; line search: check_jacobians={SOLVER_LS_CHECK_JACOBIANS}, lsmin={SOLVER_LSMIN}, lsiter={SOLVER_LSITER}")
