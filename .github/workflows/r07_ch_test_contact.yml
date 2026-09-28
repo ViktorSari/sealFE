@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: smooth_s05_elastic_p040
+          - case_id: alt13_raw_p040
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
@@ -26,17 +26,17 @@ jobs:
             lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
-            sigma: '0.5'
-          - case_id: smooth_s075_elastic_p040
+            sigma: '0'
+          - case_id: alt13_raw_p030
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.30'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
-            sigma: '0.75'
+            sigma: '0'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
@@ -75,14 +75,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from studies import b129_mesh_sensitivity as mesh
-          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv')
+          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R11000_1351p5_1551p5um_profile.csv')
           mesh.main()
           PY
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
-          cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
+          cp models/b129_stage1/07R11000_1351p5_1551p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; local x=0–200 um, original z retained.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, alternate measured 1351.5–1551.5 um; 13 peaks at prominence 0.3 um in inner 190 um; local x=0–200 um, original z retained.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
