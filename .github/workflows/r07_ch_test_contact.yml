@@ -10,12 +10,23 @@ permissions:
 
 jobs:
   pilot:
+    name: pilot ${{ matrix.case_id }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case_id: mesh0375_p040
+            dz: '0.375'
+            penalty: '0.40'
+          - case_id: mesh075_p030
+            dz: '0.75'
+            penalty: '0.30'
     env:
-      B129_SURFACE_DZ_UM: '0.75'
+      B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: '1'
-      B129_CONTACT_PENALTY_MPA_PER_UM: '0.40'
+      B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
       B129_CONTACT_AUG_TOL: '0.01'
       B129_CONTACT_MAX_AUG: '25'
       B129_BULK_MODULUS_MPA: '2000.0'
@@ -83,7 +94,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: R07_CH_dense_peaks-1284p5_1484p5um-contact-pilot
+          name: R07_CH_dense_peaks-${{ matrix.case_id }}
           path: results/
           if-no-files-found: error
           retention-days: 14
