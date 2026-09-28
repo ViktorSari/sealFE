@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: full_contact_p0015_stop_3p10um
+          - case_id: full_contact_p0015_stop_3p14um
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
@@ -40,7 +40,7 @@ jobs:
       B129_VOLUME_AUGMENT: '1'
       B129_VOLUME_AUGTOL: '0.01'
       B129_RUBBER_HEIGHT_UM: '100.0'
-      B129_MAX_INDENTATION_UM: '3.10'
+      B129_MAX_INDENTATION_UM: '3.14'
       B129_DISPLACEMENT_INCREMENT_UM: ${{ matrix.step }}
       B129_INITIAL_GAP_UM: '-0.001'
       B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
@@ -106,7 +106,7 @@ jobs:
           cp models/b129_stage1/B129_stage1_normal_contact.feb results/ 2>/dev/null || true
           find models/b129_stage1 -maxdepth 1 -type f \( -name '*.xplt' -o -name '*.log' \) -exec cp {} results/ \; || true
           echo 'solve_outcome=${{ steps.solve.outcome }}' >> results/case_settings.txt
-          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 3.10 --output-dir results
+          python models/b129_stage1/active_contact_reader.py results/B129_stage1_normal_contact.xplt results/B129_stage1_normal_contact.feb --ramp-um 3.14 --output-dir results
       - name: Verify full projected contact at successful endpoint
         run: |
           python - <<'PY'
@@ -114,7 +114,7 @@ jobs:
           import math
           data = dict(line.strip().split('=', 1) for line in Path('results/B129_final_summary.txt').read_text().splitlines() if '=' in line)
           settings = Path('results/case_settings.txt').read_text()
-          assert 'solve_outcome=success' in settings, 'FEBio did not complete the 3.10 um ramp'
+          assert 'solve_outcome=success' in settings, 'FEBio did not complete the 3.14 um ramp'
           assert math.isclose(float(data['projected_contact_fraction']), 1.0, abs_tol=1e-12), 'full contact not reached'
           assert float(data['last_converged_nominal_pressure_MPa']) > 0
           assert abs(float(data['pressure_reaction_difference_pct'])) < 1
