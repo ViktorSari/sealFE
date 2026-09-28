@@ -86,3 +86,30 @@ Spring runtime audit from final XPLT + FEB: anchor/rubber z-displacement mismatc
 Run [36369381426](https://github.com/ViktorSari/sealFE/actions/runs/36369381426), commit 962e5118, retries **only profile_refined_x2**, reducing external increment 0.05 to 0.01 um (and the linked minimum step); original 3.5 um endpoint and all physical/contact/material settings unchanged. Logs show iterative divergence/negative Jacobians after a positive-J accepted state and exhausted cutbacks. This bounded step-path test may improve continuation; success is not assumed. No reference duplication; no new K study.
 
 Next check: inspect B129-targeted-profile_refined_x2_step001 and comparison artifacts, normal/error termination, 5 MPa coverage and same-pressure fields. If this one retry still fails, record it as unresolved mesh/solver robustness and do not repeat blindly. Free/elastic/depth failures remain unresolved; no evidence yet justifies their physical finalization. No full physical validation: support stiffness is unmeasured and overlap acceptance is unapproved.
+
+## Final targeted-retry result — 2026-09-28
+
+Run [36369381426](https://github.com/ViktorSari/sealFE/actions/runs/36369381426) completed. The GitHub job is green only because failed sensitivity solves are intentionally preserved; case_settings records solve_outcome=failure.
+
+| Case | Solver termination | Monotonic covered p (MPa) | Last u (um) | Reached 5 MPa |
+| --- | --- | ---: | ---: | --- |
+| profile_refined_x2_step001 | negative Jacobian / retries exhausted | 0–4.601481 | 3.410370 | no |
+
+The 0.01 um external increment extended x-refined coverage from 3.361506 to 4.601481 MPa but still did not reach 5 MPa. Final accepted-state force mismatch is 0.0000154%; projected FEBio contact ratio is 1.0; in-profile facet-average vertical overlap is 0.097788 um; peak facet pressure 9.269956 MPa; maximum von Mises stress 2.753971 MPa; maximum principal Lagrange strain 0.415624; Gauss-point J range 0.944007–1.055969 with zero non-positive accepted values. These local values belong to the actual stored pressure 4.601481 MPa, not 5 MPa.
+
+The failed Newton iterate contained many negative Jacobians, whereas the last accepted state remained positive-J. Therefore the failure is recorded as unresolved nonlinear/mesh robustness near the 5 MPa endpoint, not as physical material failure. Per the bounded-retry rule, no further step-size sweep is launched.
+
+### Closure status
+
+| Item | Status | Conclusion |
+| --- | --- | --- |
+| Clean 100 um roller reference | numerically closed through 5 MPa | usable as the current reference, subject to overlap acceptance |
+| Vertical mesh study | closed previously | 0.75 um first layer supported |
+| x refinement | not closed at 5 MPa | agreement in u is strong through 3 MPa, but 5 MPa field convergence is unproven |
+| Free / elastic lateral supports | exploratory only; failed below 5 MPa | cannot select a physical support regime; stiffness unmeasured |
+| 200 um depth | failed at 1.296806 MPa | depth independence unproven |
+| Force balance | passed at all reported accepted states | contact integral and top reaction agree to <0.000054% |
+| Geometric overlap | nonzero | about 0.110089 um at the 5.371 MPa reference state; no approved acceptance threshold |
+| Full physical validation | not achieved | blocked by support applicability, depth/x convergence and overlap criterion |
+
+No additional solver run is justified without a deliberate modelling decision: measured/evidence-based lateral restraint, wider measured profile/boundary treatment, or a revised finite-element formulation/mesh strategy. K remains fixed at 2000 MPa; no new K study was performed.
