@@ -83,19 +83,39 @@ jobs:
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
           sed -i 's/int NegativeJacobian::m_maxout = 0;/int NegativeJacobian::m_maxout = 60;/' .febio-src/FECore/FEException.cpp
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.febio-src/FEBio/FEBio.cpp')
+          s = p.read_text()
+          s = s.replace('#include "FEBioApp.h"', '#include "FEBioApp.h"\n#include <mpi.h>')
+          s = s.replace('// create the FEBio app', 'MPI_Init(&argc, &argv);\n\t// create the FEBio app')
+          s = s.replace('if (febio.Init(argc, argv) == false) return 1;',
+                        'if (febio.Init(argc, argv) == false) { MPI_Finalize(); return 1; }')
+          s = s.replace('return nret;', 'MPI_Finalize();\n\treturn nret;')
+          assert s.count('MPI_Init(&argc, &argv)') == 1
+          assert s.count('MPI_Finalize()') == 2
+          p.write_text(s)
+          with Path('.febio-src/CMakeLists.txt').open('a') as cmake:
+              cmake.write('\ntarget_link_libraries(febio4 PRIVATE mpi)\n')
+          PY
       - name: Restore FEBio build cache
         id: febio-cache
         uses: actions/cache/restore@v4
         with:
           path: .febio-build
-          key: febio-4.13-ubuntu-x64-hypre-negjac60-v1
+          key: febio-4.13-ubuntu-x64-hypre-mpi-negjac60-v2
       - name: Configure FEBio
         if: steps.febio-cache.outputs.cache-hit != 'true'
         run: |
-          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=ON -DHYPRE_INC=/usr/include/hypre -DHYPRE_LIB=/usr/lib/x86_64-linux-gnu/libHYPRE.so -DEXTRA_INC=/usr/lib/x86_64-linux-gnu/openmpi/include -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
+          cmake -S .febio-src -B .febio-build -DCMAKE_BUILD_TYPE=Release -DUSE_MKL=OFF -DUSE_FFTW=OFF -DUSE_HYPRE=ON -DHYPRE_INC=/usr/include/hypre -DHYPRE_LIB=/usr/lib/x86_64-linux-gnu/libHYPRE.so -DEXTRA_INC=/usr/lib/x86_64-linux-gnu/openmpi/include -DCMAKE_CXX_FLAGS='-I/usr/lib/x86_64-linux-gnu/openmpi/include' -DUSE_LEVMAR=OFF -DUSE_MMG=OFF -DUSE_NLOPT=OFF -DUSE_SUPERLU_MT=OFF -DUSE_ZLIB=OFF -DUSE_STATIC_STDLIBS=OFF -DCMAKE_EXE_LINKER_FLAGS='-fopenmp' -DCMAKE_SHARED_LINKER_FLAGS='-fopenmp'
       - name: Build FEBio
         if: steps.febio-cache.outputs.cache-hit != 'true'
         run: cmake --build .febio-build --target febio4 --parallel 2
+      - uses: actions/cache/save@v4
+        if: steps.febio-cache.outputs.cache-hit != 'true'
+        with:
+          path: .febio-build
+          key: febio-4.13-ubuntu-x64-hypre-mpi-negjac60-v2
       - name: Run FEBio
         id: solve
         continue-on-error: true
