@@ -67,6 +67,8 @@ CONTACT_SEARCH_RADIUS_UM = env_float("B129_CONTACT_SEARCH_RADIUS_UM", 5.0)
 CONTACT_AUG_TOL = env_float("B129_CONTACT_AUG_TOL", 0.01)
 CONTACT_MAX_AUG = env_int("B129_CONTACT_MAX_AUG", 25)
 CONTACT_FORMULATION = env_str("B129_CONTACT_FORMULATION", "sliding-elastic")
+CONTACT_ENFORCEMENT = env_str("B129_CONTACT_ENFORCEMENT", "AUGLAG")
+CONTACT_SMOOTH_AUG = env_int("B129_CONTACT_SMOOTH_AUG", 0)
 SOLVER_DTOL = env_float("B129_SOLVER_DTOL", 0.01)
 SOLVER_ETOL = env_float("B129_SOLVER_ETOL", 0.01)
 SOLVER_LS_CHECK_JACOBIANS = env_int("B129_SOLVER_LS_CHECK_JACOBIANS", 0)
@@ -437,6 +439,13 @@ def main():
     elif CONTACT_FORMULATION != "sliding-elastic":
         raise ValueError(f"Unsupported contact formulation: {CONTACT_FORMULATION}")
 
+    if CONTACT_ENFORCEMENT not in ("AUGLAG", "PENALTY"):
+        raise ValueError(f"Unsupported contact enforcement: {CONTACT_ENFORCEMENT}")
+    if CONTACT_ENFORCEMENT == "PENALTY":
+        xml = xml.replace('<laugon>AUGLAG</laugon>', '<laugon>0</laugon>', 1)
+    if CONTACT_SMOOTH_AUG:
+        xml = xml.replace('<smooth_aug>0</smooth_aug>', '<smooth_aug>1</smooth_aug>', 1)
+
     # Optional augmented-Lagrangian enforcement of the volumetric constraint
     # for the three-field uncoupled rubber domain. This is distinct from
     # augmented-Lagrangian contact. pyFEBio writes SolidDomain as a self-closing
@@ -469,6 +478,7 @@ def main():
     print(f"Material: MR2 interpolation fit, C10={C10_MPA} MPa, C01={C01_MPA} MPa, K={BULK_MODULUS_MPA} MPa")
     print(f"Contact penalty: {CONTACT_PENALTY_MPA_PER_UM} MPa/um; initial gap: {INITIAL_GAP_UM} um")
     print(f"Contact formulation: {CONTACT_FORMULATION}")
+    print(f"Contact enforcement: {CONTACT_ENFORCEMENT}; smooth_aug={CONTACT_SMOOTH_AUG}")
     print(f"Contact augmentation: tolerance={CONTACT_AUG_TOL}, maxaug={CONTACT_MAX_AUG}")
     print(f"Contact search radius: {CONTACT_SEARCH_RADIUS_UM} um; side BC: {SIDE_BC_MODE}")
     print(f"Solver tolerances: dtol={SOLVER_DTOL}, etol={SOLVER_ETOL}; line search: check_jacobians={SOLVER_LS_CHECK_JACOBIANS}, lsmin={SOLVER_LSMIN}, lsiter={SOLVER_LSITER}")

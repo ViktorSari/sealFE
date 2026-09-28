@@ -17,20 +17,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: facet_mesh075_p040
+          - case_id: elastic_penalty_p040
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
-          - case_id: facet_mesh075_p020
+            enforcement: PENALTY
+            smooth_aug: '0'
+          - case_id: elastic_penalty_p020
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.20'
             step: '0.05'
             lsmin: '0.001'
             lsiter: '10'
+            enforcement: PENALTY
+            smooth_aug: '0'
+          - case_id: elastic_smooth_aug_p040
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.40'
+            step: '0.05'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '1'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
@@ -51,7 +64,9 @@ jobs:
       B129_SOLVER_LS_CHECK_JACOBIANS: '1'
       B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
       B129_SOLVER_LSITER: ${{ matrix.lsiter }}
-      B129_CONTACT_FORMULATION: sliding-facet-on-facet
+      B129_CONTACT_FORMULATION: sliding-elastic
+      B129_CONTACT_ENFORCEMENT: ${{ matrix.enforcement }}
+      B129_CONTACT_SMOOTH_AUG: ${{ matrix.smooth_aug }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
