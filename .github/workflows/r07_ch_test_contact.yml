@@ -17,15 +17,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: mesh0375_p040
-            dz: '0.375'
-            penalty: '0.40'
-          - case_id: mesh075_p030
+          - case_id: x2_mesh075_p040_step005
             dz: '0.75'
-            penalty: '0.30'
+            x_subdiv: '2'
+            penalty: '0.40'
+            step: '0.05'
+          - case_id: x2_mesh0375_p040_step005
+            dz: '0.375'
+            x_subdiv: '2'
+            penalty: '0.40'
+            step: '0.05'
+          - case_id: x2_mesh075_p040_step0025
+            dz: '0.75'
+            x_subdiv: '2'
+            penalty: '0.40'
+            step: '0.025'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
-      B129_X_SUBDIV: '1'
+      B129_X_SUBDIV: ${{ matrix.x_subdiv }}
       B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
       B129_CONTACT_AUG_TOL: '0.01'
       B129_CONTACT_MAX_AUG: '25'
@@ -34,7 +43,7 @@ jobs:
       B129_VOLUME_AUGTOL: '0.01'
       B129_RUBBER_HEIGHT_UM: '100.0'
       B129_MAX_INDENTATION_UM: '4.2'
-      B129_DISPLACEMENT_INCREMENT_UM: '0.05'
+      B129_DISPLACEMENT_INCREMENT_UM: ${{ matrix.step }}
       B129_INITIAL_GAP_UM: '-0.001'
       B129_CONTACT_SEARCH_RADIUS_UM: '5.0'
       B129_SIDE_BC_MODE: both_sides
