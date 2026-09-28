@@ -17,55 +17,55 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: p005_jac
+          - case_id: x2_p005
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
-            x_subdiv: '1'
+            x_subdiv: '2'
             penalty: '0.05'
             step: '0.05'
             augtol: '0.01'
-            lsmin: '0.000001'
-            lsiter: '20'
+            lsmin: '0.001'
+            lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
             sigma: '0'
-          - case_id: p005_jac_step025
+          - case_id: x2_p0075
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.05'
-            step: '0.025'
-            augtol: '0.01'
-            lsmin: '0.000001'
-            lsiter: '20'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: p005_jac_augtol001
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '1'
-            penalty: '0.05'
-            step: '0.05'
-            augtol: '0.001'
-            lsmin: '0.000001'
-            lsiter: '20'
-            enforcement: AUGLAG
-            smooth_aug: '0'
-            sigma: '0'
-          - case_id: p0075_jac_step025
-            side: both_sides
-            bulk: '2000.0'
-            dz: '0.75'
-            x_subdiv: '1'
+            x_subdiv: '2'
             penalty: '0.075'
-            step: '0.025'
+            step: '0.05'
             augtol: '0.01'
-            lsmin: '0.000001'
-            lsiter: '20'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0'
+          - case_id: x2_dz15_p005
+            side: both_sides
+            bulk: '2000.0'
+            dz: '1.5'
+            x_subdiv: '2'
+            penalty: '0.05'
+            step: '0.05'
+            augtol: '0.01'
+            lsmin: '0.001'
+            lsiter: '10'
+            enforcement: AUGLAG
+            smooth_aug: '0'
+            sigma: '0'
+          - case_id: x1_p004
+            side: both_sides
+            bulk: '2000.0'
+            dz: '0.75'
+            x_subdiv: '1'
+            penalty: '0.04'
+            step: '0.05'
+            augtol: '0.01'
+            lsmin: '0.001'
+            lsiter: '10'
             enforcement: AUGLAG
             smooth_aug: '0'
             sigma: '0'
@@ -74,7 +74,7 @@ jobs:
       B129_X_SUBDIV: ${{ matrix.x_subdiv }}
       B129_CONTACT_PENALTY_MPA_PER_UM: ${{ matrix.penalty }}
       B129_CONTACT_AUG_TOL: ${{ matrix.augtol }}
-      B129_CONTACT_MAX_AUG: '100'
+      B129_CONTACT_MAX_AUG: '50'
       B129_BULK_MODULUS_MPA: ${{ matrix.bulk }}
       B129_VOLUME_AUGMENT: '1'
       B129_VOLUME_AUGTOL: '0.01'
@@ -86,7 +86,7 @@ jobs:
       B129_SIDE_BC_MODE: ${{ matrix.side }}
       B129_SOLVER_DTOL: '0.01'
       B129_SOLVER_ETOL: '0.01'
-      B129_SOLVER_LS_CHECK_JACOBIANS: '1'
+      B129_SOLVER_LS_CHECK_JACOBIANS: '0'
       B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
       B129_SOLVER_LSITER: ${{ matrix.lsiter }}
       B129_CONTACT_FORMULATION: sliding-elastic
@@ -116,7 +116,7 @@ jobs:
           cp models/b129_stage1/07R11000_1284p5_1484p5um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; Jacobian-checked continuation of low-penalty augmented contact.\n' >> results/case_settings.txt
+          printf '07R11000.TXT, measured 1284.5–1484.5 um; 13 peaks at prominence 0.3 um in inner 190 um; original z retained; piecewise-linear profile subdivision and low-penalty contact.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
