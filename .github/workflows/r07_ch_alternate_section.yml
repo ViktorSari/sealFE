@@ -3,7 +3,7 @@ name: R07 alternate-section low-overlap contact trial
 on:
   workflow_dispatch:
   pull_request:
-    branches: [codex/b129-contact-closure]
+    branches: [codex/r07-ch-dense-peaks]
 
 permissions:
   contents: read
