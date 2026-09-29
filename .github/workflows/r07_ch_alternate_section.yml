@@ -17,31 +17,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: r13000_35_235_p040
+          - case_id: r13000_35_235_p040_step020_jac
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
             penalty: '0.40'
-            step: '0.05'
+            step: '0.02'
             augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
+            lsmin: '0.00001'
+            lsiter: '30'
             enforcement: AUGLAG
             smooth_aug: '0'
+            jac_check: '1'
             sigma: '0'
-          - case_id: r13000_35_235_p030
+          - case_id: r13000_35_235_p050_step020_jac_smooth
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.30'
-            step: '0.05'
+            penalty: '0.50'
+            step: '0.02'
             augtol: '0.01'
-            lsmin: '0.001'
-            lsiter: '10'
+            lsmin: '0.00001'
+            lsiter: '30'
             enforcement: AUGLAG
-            smooth_aug: '0'
+            smooth_aug: '1'
+            jac_check: '1'
             sigma: '0'
     env:
       B129_SURFACE_DZ_UM: ${{ matrix.dz }}
@@ -60,7 +62,7 @@ jobs:
       B129_SIDE_BC_MODE: ${{ matrix.side }}
       B129_SOLVER_DTOL: '0.01'
       B129_SOLVER_ETOL: '0.01'
-      B129_SOLVER_LS_CHECK_JACOBIANS: '0'
+      B129_SOLVER_LS_CHECK_JACOBIANS: ${{ matrix.jac_check }}
       B129_SOLVER_LSMIN: ${{ matrix.lsmin }}
       B129_SOLVER_LSITER: ${{ matrix.lsiter }}
       B129_CONTACT_FORMULATION: sliding-elastic
