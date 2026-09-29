@@ -17,13 +17,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: r13000_35_235_p012_step020_jac
+          - case_id: r13000_35_235_p015_step010_jac
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.12'
-            step: '0.02'
+            penalty: '0.15'
+            step: '0.01'
             augtol: '0.01'
             lsmin: '0.00001'
             lsiter: '30'
@@ -31,13 +31,13 @@ jobs:
             smooth_aug: '0'
             jac_check: '1'
             sigma: '0'
-          - case_id: r13000_35_235_p018_step020_jac
+          - case_id: r13000_35_235_p017_step010_jac
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.18'
-            step: '0.02'
+            penalty: '0.17'
+            step: '0.01'
             augtol: '0.01'
             lsmin: '0.00001'
             lsiter: '30'
