@@ -17,12 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - case_id: r13000_69_269_p040_step020_jac
+          - case_id: r13000_35_235_p012_step020_jac
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.40'
+            penalty: '0.12'
             step: '0.02'
             augtol: '0.01'
             lsmin: '0.00001'
@@ -31,12 +31,12 @@ jobs:
             smooth_aug: '0'
             jac_check: '1'
             sigma: '0'
-          - case_id: r13000_69_269_p050_step020_jac
+          - case_id: r13000_35_235_p018_step020_jac
             side: both_sides
             bulk: '2000.0'
             dz: '0.75'
             x_subdiv: '1'
-            penalty: '0.50'
+            penalty: '0.18'
             step: '0.02'
             augtol: '0.01'
             lsmin: '0.00001'
@@ -85,14 +85,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from studies import b129_mesh_sensitivity as mesh
-          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R13000_69_269um_profile.csv')
+          mesh.gm.PROFILE_CSV = Path('models/b129_stage1/07R13000_35_235um_profile.csv')
           mesh.main()
           PY
           test -s models/b129_stage1/B129_stage1_normal_contact.feb
-          cp models/b129_stage1/07R13000_69_269um_profile.csv results/
+          cp models/b129_stage1/07R13000_35_235um_profile.csv results/
           cp models/b129_stage1/used_profile.csv results/
           env | grep '^B129_' | sort > results/case_settings.txt
-          printf '07R13000.TXT, measured 69–269 um; 9 peaks at prominence 0.3 um and 4 um minimum distance in inner 190 um; 3.379 um range; 0.0068 um edge mismatch; original z retained; check full projected contact and geometric overlap.\n' >> results/case_settings.txt
+          printf '07R13000.TXT, measured 35–235 um; 9 peaks at prominence 0.3 um and 4 um minimum distance in inner 190 um; 3.379 um range; original z retained; intermediate contact penalty trial targeting full contact near 0.1 um geometric overlap.\n' >> results/case_settings.txt
       - name: Clone FEBio 4.13
         run: |
           git clone --depth 1 --branch v4.13 https://github.com/febiosoftware/FEBio.git .febio-src
